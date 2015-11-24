@@ -22,20 +22,31 @@ func ParseCommand(cmd string) (string, []string, bool) {
 				return "", []string{}, false
 			}
 		}
+		nickReg := regexp.MustCompile("<@(.*)>")
+		if str := nickReg.FindString(param); len(str) > 0 {
+			nick, _ := api.GetUserInfo(str[2 : len(str)-1])
+			mention := "@" + nick.Name
+			params = append(params, mention)
+			continue
+		}
 		params = append(params, param)
 	}
 	return cmdString, params, true
 }
 
 func ParseEvent(ev *slack.MessageEvent) {
+	msgParams := slack.NewPostMessageParameters()
+	msgParams.AsUser = true
 	user, err := api.GetUserInfo(ev.User)
 	if err != nil {
 		log.Printf("Error: %v", err.Error())
 		return
 	}
+	//if user.Name != "liran" {
+	//rtm.PostMessage("#general", "I only answer to my master", msgParams)
+	//return
+	//}
 	if cmd, params, ok := ParseCommand(ev.Text); ok {
-		msgParams := slack.NewPostMessageParameters()
-		msgParams.AsUser = true
 		log.Printf("%v issued the %v command with %#v params\n\n", user.Name, cmd, params)
 		if cmd == "!speak" {
 			msgString := strings.Join(params, " ")
