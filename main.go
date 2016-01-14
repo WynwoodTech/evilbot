@@ -292,7 +292,9 @@ func tellJokes() {
 
 	dec := json.NewDecoder(jfile)
 	var jokes map[string][]interface{}
-	dec.Decode(&jokes)
+	if err := dec.Decode(&jokes); err != nil {
+		panic(err)
+	}
 	for {
 		var pause time.Duration
 		for {
@@ -303,6 +305,8 @@ func tellJokes() {
 			}
 		}
 		time.Sleep(pause)
+		jc := len(jokes) - 1
+		log.Printf("Len: %v\n", jc)
 		c := rand.Intn(len(jokes) - 1)
 		i := 0
 		for _, js := range jokes {
