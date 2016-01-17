@@ -13,10 +13,17 @@ import (
 
 type SlackBot struct {
 	name     string
+	logging  bool
 	leadchar string
 	conn     *slack.Client
 	rtm      *slack.RTM
-	handlers []Handler
+	handlers []EventHandler
+	commands []EventHandler
+}
+
+type EventHandler struct {
+	Name   string
+	Handle Handler
 }
 
 type Handler interface {
@@ -40,7 +47,7 @@ func (e *Event) ParseCommand(cmd string) error {
 	allparams := strings.Split(cmd, " ")
 	for i, param := range allparams {
 		if i == 0 {
-			rgStr := fmt.Sprintf("%v%v%v", "^", e.LeadChar, "(.*)$")
+			rgStr := fmt.Sprintf("%v%v%v", "^[", e.LeadChar, "](.*)$")
 			cmdReg := regexp.MustCompile(rgStr)
 			if str := cmdReg.FindString(param); len(str) > 0 {
 				e.Command = param[len(e.LeadChar):]
@@ -55,30 +62,70 @@ func (e *Event) ParseCommand(cmd string) error {
 }
 
 type Response struct {
-	RTM *slack.RTMResponse
+	RTM *slack.RTM
 }
 
-func (s *SlackBot) HandleMsg(e *slack.MessageEvent) {
-	//log.Printf("MSG: %#v\n", e)
+func (s *SlackBot) HandleEvent(e *slack.MessageEvent) {
 	ev := Event{}
 	ev.LeadChar = s.leadchar
-	if err := ev.ParseCommand(e.Text); err != nil {
-		// not a command
+	ev.User, _ = s.rtm.GetUserInfo(e.User)
+	ev.Channel, _ = s.rtm.GetChannelInfo(e.Channel)
+	s.HandleMsg(ev)
+	if err := ev.ParseCommand(e.Text); err == nil {
+		s.HandleCmd(ev)
 	}
-	log.Printf("EV: %#v\n", ev)
-	for _, evh := range s.handlers {
-		log.Printf("EVH: %#v\n", evh)
-		ev.User, _ = s.rtm.GetUserInfo(e.User)
-		ev.Channel, _ = s.rtm.GetChannelInfo(e.Channel)
+}
+
+func (s *SlackBot) HandleCmd(e Event) {
+	for _, cmd := range s.commands {
+		if strings.ToLower(e.Command) == strings.ToLower(cmd.Name) {
+			r := Response{}
+			r.RTM = s.rtm
+			cmd.Handle.ServeHandler(e, &r)
+		}
+	}
+}
+
+func (s *SlackBot) HandleMsg(e Event) {
+	for _, ev := range s.handlers {
+		r := Response{}
+		r.RTM = s.rtm
+		ev.Handle.ServeHandler(e, &r)
 	}
 }
 
 func (s *SlackBot) HandleConnEvent(e *slack.ConnectedEvent) {
-	log.Printf("connection Event: %#v\n", e)
+	//log.Printf("connection Event: %#v\n", e)
 }
 
-func (s *SlackBot) AddEventHandler(name string, ev func(e Event, r *Response)) {
-	s.handlers = append(s.handlers)
+func (s *SlackBot) AddCmdHandler(name string, ev HandlerFunc) error {
+	for _, c := range s.commands {
+		if strings.ToLower(c.Name) == strings.ToLower(name) {
+			return errors.New("Command handler with this name already exists")
+		}
+	}
+	e := EventHandler{}
+	e.Name = name
+	e.Handle = ev
+	s.commands = append(s.commands, e)
+	return nil
+}
+
+func (s *SlackBot) AddEventHandler(name string, ev HandlerFunc) error {
+	for _, h := range s.handlers {
+		if strings.ToLower(h.Name) == strings.ToLower(name) {
+			return errors.New("General handler with this name already exists")
+		}
+	}
+	e := EventHandler{}
+	e.Name = name
+	e.Handle = ev
+	s.handlers = append(s.handlers, e)
+	return nil
+}
+
+func (s *SlackBot) Logging(b bool) {
+	s.logging = b
 }
 
 func (s *SlackBot) Run() {
@@ -87,15 +134,18 @@ Loop:
 	for {
 		select {
 		case msg := <-s.rtm.IncomingEvents:
+			if s.logging {
+				log.Printf("Logger: %#v\n", msg.Data)
+			}
 			switch ev := msg.Data.(type) {
 			case *slack.HelloEvent:
 				// Ignore hello
 
 			case *slack.ConnectedEvent:
-				go s.HandleConnEvent(ev)
+				//go s.HandleConnEvent(ev)
 
 			case *slack.MessageEvent:
-				go s.HandleMsg(ev)
+				go s.HandleEvent(ev)
 
 			case *slack.PresenceChangeEvent:
 				//log.Printf("Presence Change: %v\n", ev)
@@ -107,7 +157,7 @@ Loop:
 				//log.Printf("Error: %s\n", ev.Error())
 
 			case *slack.InvalidAuthEvent:
-				log.Printf("Invalid credentials")
+				//log.Printf("Invalid credentials")
 				break Loop
 
 			default:
