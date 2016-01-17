@@ -70,6 +70,7 @@ func (s *SlackBot) HandleEvent(e *slack.MessageEvent) {
 	ev.LeadChar = s.leadchar
 	ev.User, _ = s.rtm.GetUserInfo(e.User)
 	ev.Channel, _ = s.rtm.GetChannelInfo(e.Channel)
+	ev.ArgStr = e.Text
 	s.HandleMsg(ev)
 	if err := ev.ParseCommand(e.Text); err == nil {
 		s.HandleCmd(ev)
