@@ -10,7 +10,7 @@ import (
 func main() {
 
 	api_key := os.Getenv("SLACKBOT")
-	b, err := bot.New(api_key)
+	b, err := bot.New(api_key, ".")
 	if err != nil {
 		log.Println("Not Authenticated, please check your ENV Setting")
 		return
