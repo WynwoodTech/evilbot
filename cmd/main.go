@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/lirancohen/slackBot/pkg/bot"
+	"github.com/lirancohen/slackbot/pkg/bot"
 )
 
 func main() {
