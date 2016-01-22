@@ -1,4 +1,4 @@
-package bot
+package evilbot
 
 import (
 	"errors"

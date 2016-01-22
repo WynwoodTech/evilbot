@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/lirancohen/slackbot/pkg/bot"
+	"github.com/wynwoodtech/evilbot/pkg/bot"
 )
 
 func main() {
@@ -15,7 +15,7 @@ func main() {
 	api_key := os.Getenv("SLACKBOT")
 	//Start a New Bot given the API Key and a command indntifier
 	//Command identifier cannot be longer than 3 charachters
-	b, err := bot.New(api_key, ".")
+	b, err := evilbot.New(api_key, ".")
 	if err != nil {
 		log.Println("Not Authenticated, please check your ENV Setting")
 		return
@@ -46,14 +46,14 @@ func main() {
 
 //These are just some example handlers
 
-func TestCmdHandler(e bot.Event, r *bot.Response) {
+func TestCmdHandler(e bot.Event, r *evilbot.Response) {
 	log.Printf("Test Command: %v\n", e)
 }
 
-func TestCmdHandler2(e bot.Event, r *bot.Response) {
+func TestCmdHandler2(e bot.Event, r *evilbot.Response) {
 	log.Printf("Test Command2: %v\n", e)
 }
 
-func TestGeneralHandler(e bot.Event, r *bot.Response) {
+func TestGeneralHandler(e bot.Event, r *evilbot.Response) {
 	log.Printf("Test General Handler: %v\n", e)
 }
