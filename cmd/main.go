@@ -46,14 +46,14 @@ func main() {
 
 //These are just some example handlers
 
-func TestCmdHandler(e bot.Event, r *evilbot.Response) {
+func TestCmdHandler(e evilbot.Event, r *evilbot.Response) {
 	log.Printf("Test Command: %v\n", e)
 }
 
-func TestCmdHandler2(e bot.Event, r *evilbot.Response) {
+func TestCmdHandler2(e evilbot.Event, r *evilbot.Response) {
 	log.Printf("Test Command2: %v\n", e)
 }
 
-func TestGeneralHandler(e bot.Event, r *evilbot.Response) {
+func TestGeneralHandler(e evilbot.Event, r *evilbot.Response) {
 	log.Printf("Test General Handler: %v\n", e)
 }
