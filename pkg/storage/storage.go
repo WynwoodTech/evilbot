@@ -27,17 +27,11 @@ func Load(key string) (*Store, error) {
 		return &s, err
 	}
 	s.DB = db
-	s.DB.Batch(func(tx *bolt.Tx) error {
-		return tx.ForEach(func(name []byte, buck *bolt.Bucket) error {
-			s.Buckets[string(name)] = buck
-			return nil
-		})
-	})
 	return &Store{}, nil
 }
 
-//Adds Bucket to the DB Store
-func (s *Store) AddBucket(name string) error {
+//Loads Bucket by name, Adds bucket if it doesn't exist in the store
+func (s *Store) LoadBucket(name string) error {
 	if s.Buckets[name] != nil {
 		return errors.New("bucket already exists")
 	}
@@ -52,4 +46,17 @@ func (s *Store) AddBucket(name string) error {
 		return err
 	}
 	return nil
+}
+
+//Get value from specified bucket and key
+func (s *Store) GetVal(bucket string, key string) (string, error) {
+	if r := s.Buckets[bucket].Get([]byte(key)); len(r) > 0 {
+		return r, nil
+	}
+	return "", nil
+}
+
+//Set value to specified bucket and key
+func (s *Store) SetVal(bucket string, key string, value string) error {
+	return s.Buckets[bucket].Put(key, value)
 }
