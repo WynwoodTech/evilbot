@@ -5,14 +5,27 @@ import (
 	"os"
 
 	"github.com/wynwoodtech/evilbot/pkg/bot"
+	"github.com/wynwoodtech/evilbot/pkg/storage"
 )
 
 func main() {
 	defer log.Println("Exiting...")
-	//Get the Slack API key from your environment variable
 
+	//Get the Slack API key from your environment variable
 	log.Println("Provisioning bot...")
 	api_key := os.Getenv("SLACKBOT")
+	if len(api_key) < 1 {
+		log.Printf("Please et proper SLACKBOT environment variable")
+		return
+	}
+
+	//Load storage given slackbot key
+	log.Printf("Loading storage volumes...")
+	db, err := storage.Load(api_key)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("DB Loaded: %v\n", db)
 	//Start a New Bot given the API Key and a command indntifier
 	//Command identifier cannot be longer than 3 charachters
 	b, err := evilbot.New(api_key, ".")
@@ -37,6 +50,19 @@ func main() {
 		TestGeneralHandler,
 	)
 
+	if err := db.AddBucket("main"); err != nil {
+		log.Panic(err)
+	}
+
+	if err := db.SetVal("main", "Test Key", "Test Value"); err != nil {
+		log.Panic(err)
+	}
+
+	if t, err := db.GetVal("main", "Test key"); err == nil {
+		log.Printf("Test Key: %v\n", t)
+	} else {
+		log.PRintf("Reading Error: %v\n", err)
+	}
 	//Turn on logging to see ALL Incoming data
 	b.Logging(true)
 
@@ -48,6 +74,7 @@ func main() {
 
 func TestCmdHandler(e evilbot.Event, r *evilbot.Response) {
 	log.Printf("Test Command: %v\n", e)
+
 }
 
 func TestCmdHandler2(e evilbot.Event, r *evilbot.Response) {
