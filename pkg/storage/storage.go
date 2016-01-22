@@ -51,12 +51,12 @@ func (s *Store) LoadBucket(name string) error {
 //Get value from specified bucket and key
 func (s *Store) GetVal(bucket string, key string) (string, error) {
 	if r := s.Buckets[bucket].Get([]byte(key)); len(r) > 0 {
-		return r, nil
+		return string(r), nil
 	}
 	return "", nil
 }
 
 //Set value to specified bucket and key
 func (s *Store) SetVal(bucket string, key string, value string) error {
-	return s.Buckets[bucket].Put(key, value)
+	return s.Buckets[bucket].Put([]byte(key), []byte(value))
 }
