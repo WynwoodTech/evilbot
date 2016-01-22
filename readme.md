@@ -28,3 +28,10 @@ Getting Started:
 
 
 License: GPLv3
+
+Using Libraries:
+[nlopes/slack](http://github.com/nlopes/slack)
+[boltdb/bolt](http://github.com/boltdb/bolt)
+
+Created By [Liran Cohen](http://www.github.com/lirancohen) (c)2016 For [#WynwoodTech](http://www.wyn.tech)
+
