@@ -17,18 +17,19 @@ type Store struct {
 //Loads a BoldBD Store given key string
 //If DB doesn't exist a new one is created.
 func Load(key string) (*Store, error) {
+	log.Printf("Loading %v storage", key)
 	s := Store{
 		Key: key,
 	}
 	storagefile := fmt.Sprintf("./storage/%v.db", key)
 	db, err := bolt.Open(storagefile, 0600, nil)
 	if err != nil {
-		return err
+		return &s, err
 	}
 	s.DB = db
 	s.DB.Batch(func(tx *bolt.Tx) error {
 		return tx.ForEach(func(name []byte, buck *bolt.Bucket) error {
-			s.Buckets[name] = buck
+			s.Buckets[string(name)] = buck
 			return nil
 		})
 	})
@@ -41,7 +42,7 @@ func (s *Store) AddBucket(name string) error {
 		return errors.New("bucket already exists")
 	}
 	if err := s.DB.Batch(func(tx *bolt.Tx) error {
-		buck, err := tx.CreateBucketIfNotExists(name)
+		buck, err := tx.CreateBucketIfNotExists([]byte(name))
 		if err != nil {
 			return err
 		}
