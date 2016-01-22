@@ -50,7 +50,7 @@ func main() {
 		TestGeneralHandler,
 	)
 
-	if err := db.AddBucket("main"); err != nil {
+	if err := db.LoadBucket("main"); err != nil {
 		log.Panic(err)
 	}
 
@@ -61,7 +61,7 @@ func main() {
 	if t, err := db.GetVal("main", "Test key"); err == nil {
 		log.Printf("Test Key: %v\n", t)
 	} else {
-		log.PRintf("Reading Error: %v\n", err)
+		log.Printf("Reading Error: %v\n", err)
 	}
 	//Turn on logging to see ALL Incoming data
 	b.Logging(true)
