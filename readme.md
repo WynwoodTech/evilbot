@@ -10,7 +10,7 @@ v 0.1.1
 Standard Feature List:
 - [x] Command Handlers
 - [x] General Handlers
-- [ ] Persistant Storage
+- [x] Persistant Storage
 - [ ] HTTPS server with tokenized auth for stats/triggers 
 - [ ] Built in user activity logger, catalogued by channel
 - [ ] Top 5 Active/Inactive in channel/overall for activity logger 
