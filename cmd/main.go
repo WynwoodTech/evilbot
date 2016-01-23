@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/wynwoodtech/evilbot/pkg/bot"
@@ -72,8 +73,21 @@ func main() {
 	//Turn on logging to see ALL Incoming data
 	b.Logging(true)
 
+	//Register Additional Endpoints
+	if err := b.RegisterEndpoint("/status", "get", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Write([]byte("test status override"))
+	}); err != nil {
+		log.Printf("Endpoint Error: %v\n", err)
+	}
+
+	if err := b.RegisterEndpoint("/test", "get", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Write([]byte("test"))
+	}); err != nil {
+		log.Printf("Endpoint Error: %v\n", err)
+	}
+
 	//Run The Bot
-	b.Run()
+	b.RunWithHTTP("8000")
 }
 
 //These are just some example handlers
