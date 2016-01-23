@@ -11,7 +11,8 @@ Standard Feature List:
 - [x] Command Handlers
 - [x] General Handlers
 - [x] Persistant Storage
-- [ ] HTTPS server with tokenized auth for stats/triggers 
+- [x] HTTP Server with Chat & Http response to Endpoints
+- [ ] HTTPS support and tokenized authentication 
 - [ ] Built in user activity logger, catalogued by channel
 - [ ] Top 5 Active/Inactive in channel/overall for activity logger 
 
@@ -31,7 +32,12 @@ License: GPLv3
 
 Using Libraries:
 [nlopes/slack](http://github.com/nlopes/slack)
+
 [boltdb/bolt](http://github.com/boltdb/bolt)
+
+[gorilla/mux](http://github.com/gorilla/mux)
+
+
 
 Created By [Liran Cohen](http://www.github.com/lirancohen) (c)2016 For [#WynwoodTech](http://www.wyn.tech)
 
