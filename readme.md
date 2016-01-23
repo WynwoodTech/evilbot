@@ -5,7 +5,7 @@ An easy way to launch extendable slackbots written in Go.
 
 This is in early development.
 
-v 0.1.1
+v 0.1.5
 
 Standard Feature List:
 - [x] Command Handlers
@@ -13,7 +13,10 @@ Standard Feature List:
 - [x] Persistant Storage
 - [x] HTTP Server with Chat & Http response to Endpoints
 - [ ] HTTPS support and tokenized authentication 
-- [ ] *Add Admin Users With priveleged commands*
+- [ ] Add RTM Response Helper Functions to Bot Response 
+    - [ ] ChannelInfo Helper (using channel name not ID)
+    - [ ] ReplyTo Helper (responds to channel/user directly)
+- [ ] **Add Admin Users With priveleged commands**
 - [ ] Built in user activity logger, catalogued by channel
 - [ ] Top 5 Active/Inactive in channel/overall for activity logger 
 
@@ -32,13 +35,10 @@ Getting Started:
 License: GPLv3
 
 Using Libraries:
-[nlopes/slack](http://github.com/nlopes/slack)
 
-[boltdb/bolt](http://github.com/boltdb/bolt)
+[nlopes/slack](http://github.com/nlopes/slack) - [boltdb/bolt](http://github.com/boltdb/bolt) - [gorilla/mux](http://github.com/gorilla/mux)
 
-[gorilla/mux](http://github.com/gorilla/mux)
 
 
 
 Created By [Liran Cohen](http://www.github.com/lirancohen) (c)2016 For [#WynwoodTech](http://www.wyn.tech)
-
