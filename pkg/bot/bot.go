@@ -13,6 +13,13 @@ import (
 	"github.com/nlopes/slack"
 )
 
+func (s *SlackBot) MParams() slack.PostMessageParameters {
+	msgParams := slack.NewPostMessageParameters()
+	msgParams.AsUser = true
+	msgParams.LinkNames = 1
+	return msgParams
+}
+
 type SlackBot struct {
 	name     string
 	logging  bool
@@ -42,6 +49,16 @@ type HandlerFunc func(e Event, r *Response)
 
 func (h HandlerFunc) ServeHandler(e Event, r *Response) {
 	h(e, r)
+}
+
+type EPHandlerFunc func(rw http.ResponseWriter, r *http.Request, br *Response)
+
+func (s *SlackBot) Wrap(h EPHandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rb := Response{}
+		rb.RTM = s.rtm
+		h(rw, r, &rb)
+	})
 }
 
 type Event struct {
@@ -185,7 +202,7 @@ Loop:
 	}
 }
 
-func (s *SlackBot) RegisterEndpoint(endpoint string, method string, hf http.HandlerFunc) error {
+func (s *SlackBot) RegisterEndpoint(endpoint string, method string, hf EPHandlerFunc) error {
 	name := fmt.Sprintf("%v-%v", endpoint, method)
 	if r := s.netcon.router.Get(name); r != nil {
 		return errors.New("route exists")
@@ -200,7 +217,7 @@ func (s *SlackBot) RegisterEndpoint(endpoint string, method string, hf http.Hand
 		break
 	}
 	r := s.netcon.router.NewRoute()
-	return r.Name(name).Path(endpoint).Methods(strings.ToUpper(method)).HandlerFunc(hf).GetError()
+	return r.Name(name).Path(endpoint).Methods(strings.ToUpper(method)).HandlerFunc(s.Wrap(hf)).GetError()
 }
 
 func New(apiKey string, leadChars string) (*SlackBot, error) {
@@ -227,8 +244,9 @@ func New(apiKey string, leadChars string) (*SlackBot, error) {
 	newBot.netcon = &c
 
 	//This Endpoint cannot be over-written
-	newBot.RegisterEndpoint("/status", "get", func(rw http.ResponseWriter, r *http.Request) {
+	newBot.RegisterEndpoint("/status", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
 		rw.Write([]byte("Evil Bot!"))
+		br.RTM.PostMessage("#testing", "Someone's Touching Me!", newBot.MParams())
 	})
 
 	log.Printf("NewBot: %#v\n", newBot)
