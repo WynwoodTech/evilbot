@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/wynwoodtech/evilbot/pkg/bot"
 	"github.com/wynwoodtech/evilbot/pkg/storage"
+
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -74,7 +77,7 @@ func main() {
 	b.Logging(true)
 
 	//Register Additional Endpoints
-	if err := b.RegisterEndpoint("/test", "get", TestHTTPHandler); err != nil {
+	if err := b.RegisterEndpoint("/test/{channel}", "get", TestHTTPHandler); err != nil {
 		log.Printf("Endpoint Error: %v\n", err)
 	}
 
@@ -102,5 +105,15 @@ func TestGeneralHandler(e evilbot.Event, r *evilbot.Response) {
 
 //These are just some example http bot handlers
 func TestHTTPHandler(rw http.ResponseWriter, r *http.Request, br *evilbot.Response) {
-	rw.Write([]byte("test"))
+	vars := mux.Vars(r)
+	cname := fmt.Sprintf("#%v", vars["channel"])
+	log.Printf("Channel: %v\n", cname)
+	c, err := br.RTM.GetChannelInfo(cname)
+	if err != nil {
+		rw.Write([]byte(fmt.Sprintf("%v: %v", "channel doesn't exist", err.Error())))
+	} else {
+		log.Printf("Channel: %#v\n", c)
+		rw.Write([]byte("success"))
+	}
+	log.Printf("Vars: %#v\n", vars)
 }
