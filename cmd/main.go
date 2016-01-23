@@ -54,11 +54,17 @@ func main() {
 		log.Panic(err)
 	}
 
-	if err := db.SetVal("main", "Test Key", "Test Value"); err != nil {
+	if err := db.SetVal("main", "test2", "Test Value22"); err != nil {
 		log.Panic(err)
 	}
 
-	if t, err := db.GetVal("main", "Test key"); err == nil {
+	if t, err := db.GetVal("main", "test2"); err == nil {
+		log.Printf("Test Key: %v\n", t)
+	} else {
+		log.Printf("Reading Error: %v\n", err)
+	}
+
+	if t, err := db.GetVal("main", "test"); err == nil {
 		log.Printf("Test Key: %v\n", t)
 	} else {
 		log.Printf("Reading Error: %v\n", err)
