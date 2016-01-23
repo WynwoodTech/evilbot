@@ -106,14 +106,26 @@ func TestGeneralHandler(e evilbot.Event, r *evilbot.Response) {
 //These are just some example http bot handlers
 func TestHTTPHandler(rw http.ResponseWriter, r *http.Request, br *evilbot.Response) {
 	vars := mux.Vars(r)
-	cname := fmt.Sprintf("#%v", vars["channel"])
+	cname := vars["channel"]
+	var cid string
 	log.Printf("Channel: %v\n", cname)
-	c, err := br.RTM.GetChannelInfo(cname)
-	if err != nil {
-		rw.Write([]byte(fmt.Sprintf("%v: %v", "channel doesn't exist", err.Error())))
+	if chans, err := br.RTM.GetChannels(true); err == nil {
+		for _, ch := range chans {
+			if ch.Name == cname {
+				cid = ch.ID
+			}
+		}
+	}
+	if len(cid) > 0 {
+		c, err := br.RTM.GetChannelInfo(cid)
+		if err != nil {
+			rw.Write([]byte(fmt.Sprintf("%v: %v", "channel doesn't exist", err.Error())))
+		} else {
+			log.Printf("Channel: %#v\n", c)
+			rw.Write([]byte("success"))
+		}
 	} else {
-		log.Printf("Channel: %#v\n", c)
-		rw.Write([]byte("success"))
+		rw.Write([]byte(fmt.Sprintf("%v: %v", "channel doesn't exist")))
 	}
 	log.Printf("Vars: %#v\n", vars)
 }
