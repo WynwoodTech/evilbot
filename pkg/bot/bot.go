@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/nlopes/slack"
 )
 
@@ -19,6 +21,12 @@ type SlackBot struct {
 	rtm      *slack.RTM
 	handlers []EventHandler
 	commands []EventHandler
+	netcon   *NetConn
+}
+
+type NetConn struct {
+	port   string
+	router *mux.Router
 }
 
 type EventHandler struct {
@@ -128,8 +136,16 @@ func (s *SlackBot) AddEventHandler(name string, ev HandlerFunc) error {
 func (s *SlackBot) Logging(b bool) {
 	s.logging = b
 }
-
 func (s *SlackBot) Run() {
+	s.run()
+}
+func (s *SlackBot) RunWithHTTP(port string) {
+
+	go http.ListenAndServe(fmt.Sprintf(":%v", port), s.netcon.router)
+	s.run()
+}
+func (s *SlackBot) run() {
+
 	go s.rtm.ManageConnection()
 Loop:
 	for {
@@ -169,6 +185,24 @@ Loop:
 	}
 }
 
+func (s *SlackBot) RegisterEndpoint(endpoint string, method string, hf http.HandlerFunc) error {
+	name := fmt.Sprintf("%v-%v", endpoint, method)
+	if r := s.netcon.router.Get(name); r != nil {
+		return errors.New("route exists")
+	}
+	switch strings.ToUpper(method) {
+	case "GET":
+		break
+	case "POST":
+		break
+	default:
+		return errors.New("invalid method, only accepting GET and POST")
+		break
+	}
+	r := s.netcon.router.NewRoute()
+	return r.Name(name).Path(endpoint).Methods(strings.ToUpper(method)).HandlerFunc(hf).GetError()
+}
+
 func New(apiKey string, leadChars string) (*SlackBot, error) {
 	if len(leadChars) > 3 {
 		return nil, errors.New("Lead Characthers cannot be more than 3 characters long")
@@ -185,6 +219,17 @@ func New(apiKey string, leadChars string) (*SlackBot, error) {
 	newBot.conn = api
 	newBot.rtm = rtm
 	newBot.leadchar = leadChars
+
+	r := mux.NewRouter()
+	c := NetConn{}
+	c.router = r
+
+	newBot.netcon = &c
+
+	//This Endpoint cannot be over-written
+	newBot.RegisterEndpoint("/status", "get", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Write([]byte("Evil Bot!"))
+	})
 
 	log.Printf("NewBot: %#v\n", newBot)
 	return &newBot, nil
