@@ -74,15 +74,7 @@ func main() {
 	b.Logging(true)
 
 	//Register Additional Endpoints
-	if err := b.RegisterEndpoint("/status", "get", func(rw http.ResponseWriter, r *http.Request) {
-		rw.Write([]byte("test status override"))
-	}); err != nil {
-		log.Printf("Endpoint Error: %v\n", err)
-	}
-
-	if err := b.RegisterEndpoint("/test", "get", func(rw http.ResponseWriter, r *http.Request) {
-		rw.Write([]byte("test"))
-	}); err != nil {
+	if err := b.RegisterEndpoint("/test", "get", TestHTTPHandler); err != nil {
 		log.Printf("Endpoint Error: %v\n", err)
 	}
 
@@ -90,11 +82,9 @@ func main() {
 	b.RunWithHTTP("8000")
 }
 
-//These are just some example handlers
-
+//These are just some example bot handlers
 func TestCmdHandler(e evilbot.Event, r *evilbot.Response) {
 	log.Printf("Test Command: %v\n", e)
-
 }
 
 func TestCmdHandler2(e evilbot.Event, r *evilbot.Response) {
@@ -103,4 +93,9 @@ func TestCmdHandler2(e evilbot.Event, r *evilbot.Response) {
 
 func TestGeneralHandler(e evilbot.Event, r *evilbot.Response) {
 	log.Printf("Test General Handler: %v\n", e)
+}
+
+//These are just some example http bot handlers
+func TestHTTPHandler(rw http.ResponseWriter, r *http.Request, br *evilbot.Response) {
+	rw.Write([]byte("test"))
 }
