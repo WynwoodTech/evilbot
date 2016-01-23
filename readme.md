@@ -13,6 +13,7 @@ Standard Feature List:
 - [x] Persistant Storage
 - [x] HTTP Server with Chat & Http response to Endpoints
 - [ ] HTTPS support and tokenized authentication 
+- [ ] *Add Admin Users With priveleged commands*
 - [ ] Built in user activity logger, catalogued by channel
 - [ ] Top 5 Active/Inactive in channel/overall for activity logger 
 
