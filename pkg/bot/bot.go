@@ -12,7 +12,7 @@ import (
 
 	"github.com/wynwoodtech/evilbot/pkg/storage"
 
-	//"github.com/boltdb/bolt"
+	"github.com/boltdb/bolt"
 	"github.com/gorilla/mux"
 	"github.com/nlopes/slack"
 )
@@ -289,6 +289,11 @@ func (s *SlackBot) ActivityLogger() error {
 	); err != nil {
 		return err
 	}
+	s.RegisterEndpoint("/top5", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
+		rw.Write([]byte("Evil Bot!"))
+		a.TopFive("all")
+	})
+
 	return nil
 }
 
@@ -351,6 +356,21 @@ func (a *ActivityLogger) log(c string, u string) error {
 		}
 	}
 	return nil
+}
+
+func (a *ActivityLogger) TopFive(channel string) {
+	tf := make(map[int]int)
+	a.store.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(channel))
+
+		b.ForEach(func(k, v []byte) error {
+			for i := 1; i < 6; i++ {
+				log.Printf("%v: %v\n", i, tf[i])
+			}
+			return nil
+		})
+		return nil
+	})
 }
 
 func (a *ActivityLogger) ActivityLogHadler(ev Event, br *Response) {
