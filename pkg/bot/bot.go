@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -358,19 +359,74 @@ func (a *ActivityLogger) log(c string, u string) error {
 	return nil
 }
 
-func (a *ActivityLogger) TopFive(channel string) {
-	tf := make(map[int]int)
-	a.store.DB.View(func(tx *bolt.Tx) error {
+func (a *ActivityLogger) BottomFive(channel string) (PairList, error) {
+	p := PairList{}
+	if err := a.store.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(channel))
 
-		b.ForEach(func(k, v []byte) error {
-			for i := 1; i < 6; i++ {
-				log.Printf("%v: %v\n", i, tf[i])
+		if err := b.ForEach(func(k, v []byte) error {
+			u := string(k)
+			if u == "all" || u == "slackbot" {
+				return nil
+			}
+			vi, err := strconv.Atoi(string(v))
+			if err != nil {
+				return err
+			}
+			if vi > 0 {
+				p = append(p, Pair{u, vi})
 			}
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
 		return nil
-	})
+	}); err != nil {
+		return p, err
+	}
+	sort.Sort(p)
+	var c int
+	if len(p) > 5 {
+		c = 5
+	} else {
+		c = len(p)
+	}
+	return p[:c], nil
+}
+
+func (a *ActivityLogger) TopFive(channel string) (PairList, error) {
+	p := PairList{}
+	if err := a.store.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(channel))
+
+		if err := b.ForEach(func(k, v []byte) error {
+			u := string(k)
+			if u == "all" || u == "slackbot" {
+				return nil
+			}
+			vi, err := strconv.Atoi(string(v))
+			if err != nil {
+				return err
+			}
+			if vi > 0 {
+				p = append(p, Pair{u, vi})
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return p, err
+	}
+	sort.Reverse(p)
+	var c int
+	if len(p) > 5 {
+		c = 5
+	} else {
+		c = len(p)
+	}
+	return p[:c], nil
 }
 
 func (a *ActivityLogger) ActivityLogHadler(ev Event, br *Response) {
@@ -405,3 +461,16 @@ func (a *ActivityLogger) ActivityLogHadler(ev Event, br *Response) {
 		}()
 	}
 }
+
+//List Helper
+type Pair struct {
+	Key   string
+	Value int
+}
+
+// A slice of Pairs that implements sort.Interface to sort by Value.
+type PairList []Pair
+
+func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p PairList) Len() int           { return len(p) }
+func (p PairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
