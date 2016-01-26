@@ -27,6 +27,7 @@ Wynwood Tech E-Bot Sepcific:
     - [ ] Posting Links Will give you higher rankings 
     - [ ] Users Can GiveRank, but only once a day so use wisely. 
     - [ ] Any given user can only recieve 5 GiveRanks a day. 
+    - [ ] Users who welcome new users get additional rank.
 - [ ] Interact with the starndard slackbot in some way. 
     - [ ] Epic bot rap battles
 
