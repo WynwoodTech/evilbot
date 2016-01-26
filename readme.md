@@ -22,6 +22,8 @@ Standard Feature List:
     - [x] Clean up logging code
 - [ ] Top 5 Active/Inactive in channel/overall for activity logger 
 
+**You must invite the bot into a channel for logging to take effect**
+
 Wynwood Tech E-Bot Sepcific:
 - [ ] Modify our ranking algorithm to have some smarts. 
     - [ ] Posting Links Will give you higher rankings 
