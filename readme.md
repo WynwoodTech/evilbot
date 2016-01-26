@@ -3,7 +3,8 @@
 
 An easy way to launch extendable slackbots written in Go.
 
-This is in early development.
+This is in early development. 
+Please feel free to open Issues and make Pull Requests.
 
 v 0.1.5
 
@@ -18,11 +19,14 @@ Standard Feature List:
     - [x] ReplyToUser Helper (responds to user/channel tagging the user)
 - [ ] **Add Admin Users With priveleged commands**
 - [x] Built in user activity logger, catalogued by channel
-    - [ ] Clean up logging code
+    - [x] Clean up logging code
 - [ ] Top 5 Active/Inactive in channel/overall for activity logger 
 
 Wynwood Tech E-Bot Sepcific:
 - [ ] Modify our ranking algorithm to have some smarts. 
+    - [ ] Posting Links Will give you higher rankings 
+    - [ ] Users Can GiveRank, but only once a day so use wisely. 
+    - [ ] Any given user can only recieve 5 GiveRanks a day. 
 - [ ] Interact with the starndard slackbot in some way. 
     - [ ] Epic bot rap battles
 
@@ -34,7 +38,7 @@ Getting Started:
 4. go run cmd/main.go
 
 
-License: GPLv3
+License: [GPLv3](http://www.gnu.org/licenses/gpl-3.0-standalone.html)
 
 Using Libraries:
 
