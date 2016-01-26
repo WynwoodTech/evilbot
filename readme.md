@@ -13,16 +13,19 @@ Standard Feature List:
 - [x] Persistant Storage
 - [x] HTTP Server with Chat & Http response to Endpoints
 - [ ] HTTPS support and tokenized authentication 
-- [ ] Add RTM Response Helper Functions to Bot Response 
-    - [ ] ChannelInfo Helper (using channel name not ID)
-    - [ ] ReplyTo Helper (responds to channel/user directly)
+- [x] Add RTM Response Helper Functions to Bot Response 
+    - [x] ChannelInfo Helper (using channel name not ID)
+    - [x] ReplyToUser Helper (responds to user/channel tagging the user)
 - [ ] **Add Admin Users With priveleged commands**
-- [ ] Built in user activity logger, catalogued by channel
+- [x] Built in user activity logger, catalogued by channel
+    - [ ] Clean up logging code
 - [ ] Top 5 Active/Inactive in channel/overall for activity logger 
 
 Wynwood Tech E-Bot Sepcific:
 - [ ] Modify our ranking algorithm to have some smarts. 
+- [ ] Modify our ranking algorithm to have some smarts. 
 - [ ] Interact with the starndard slackbot in some way. 
+    - [ ] Epic bot rap battles
 
 Getting Started:
 

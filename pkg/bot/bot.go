@@ -6,14 +6,18 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/wynwoodtech/evilbot/pkg/storage"
+
+	"github.com/boltdb/bolt"
 	"github.com/gorilla/mux"
 	"github.com/nlopes/slack"
 )
 
-func (s *SlackBot) MParams() slack.PostMessageParameters {
+func (r *Response) MParams() slack.PostMessageParameters {
 	msgParams := slack.NewPostMessageParameters()
 	msgParams.AsUser = true
 	msgParams.LinkNames = 1
@@ -88,6 +92,46 @@ func (e *Event) ParseCommand(cmd string) error {
 
 type Response struct {
 	RTM *slack.RTM
+}
+
+//Reply's to User.
+//If in prvt message it will respond there
+//If in channel will mention user.
+func (r *Response) ReplyToUser(e *Event, text string) error {
+	p := r.MParams()
+	var rID string
+	if e.Channel == nil {
+		rID = e.User.ID
+	} else {
+		rID = e.Channel.ID
+		text = fmt.Sprintf("@%v: %v", e.User.Name, text)
+	}
+	if _, _, err := r.RTM.PostMessage(rID, text, p); err != nil {
+		return err
+	}
+	return nil
+
+}
+
+//Get Channel Info by channel name
+func (r *Response) ChannelInfo(cname string) (slack.Channel, error) {
+	if chs, err := r.RTM.GetChannels(false); err == nil {
+		for _, ch := range chs {
+			if strings.ToLower(ch.Name) == strings.ToLower(cname) {
+				return ch, nil
+			}
+		}
+	}
+	return slack.Channel{}, errors.New("could not find channel")
+}
+
+//Send A Message to a channel given a channel name or channel ID and the text
+func (r *Response) SendToChannel(channel string, text string) error {
+	p := r.MParams()
+	if _, _, err := r.RTM.PostMessage(channel, text, p); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *SlackBot) HandleEvent(e *slack.MessageEvent) {
@@ -220,6 +264,96 @@ func (s *SlackBot) RegisterEndpoint(endpoint string, method string, hf EPHandler
 	return r.Name(name).Path(endpoint).Methods(strings.ToUpper(method)).HandlerFunc(s.Wrap(hf)).GetError()
 }
 
+func (s *SlackBot) AcitivityLogger() error {
+	a, err := storage.Load("activity_logger")
+	if err != nil {
+		return err
+	}
+	if err := a.LoadBucket("all"); err != nil {
+		return err
+	}
+	if chs, err := s.rtm.GetChannels(false); err == nil {
+		for _, ch := range chs {
+			log.Printf("Loading Bucket: %v\n", ch.ID)
+			if err := a.LoadBucket(ch.ID); err != nil {
+				return err
+			}
+		}
+	}
+	if err := s.AddEventHandler(
+		"default-activity-logger",
+		func(ev Event, br *Response) {
+			if ev.Channel != nil && ev.User != nil {
+				s, err := a.GetVal(ev.Channel.ID, ev.User.ID)
+				if err != nil {
+					if err.Error() != "no value" {
+						a.DB.View(func(tx *bolt.Tx) error {
+							tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+								log.Printf("Bucket Name: %v\n", string(name))
+								return nil
+							})
+							return nil
+						})
+						log.Printf("GetVal Error: %v\n", err.Error())
+						log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+							ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+						return
+					}
+				}
+				log.Printf("%v's Score: %v\n:", ev.User.Name, s)
+				if i, err := strconv.Atoi(s); err == nil || len(s) == 0 {
+					if len(s) == 0 {
+						i = 1
+					} else {
+						i++
+					}
+					if err := a.SetVal(ev.Channel.ID, ev.User.ID, strconv.Itoa(i)); err != nil {
+						log.Printf("Set Val Ativity Logger Error: %v\n", err.Error())
+						log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+							ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+						return
+					}
+					if s, err := a.GetVal(ev.Channel.ID, "all"); err != nil {
+						if err.Error() != "no value" {
+							log.Printf("GetVal Activity Logger Error: %v\n", err.Error())
+							log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+								ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+							return
+						}
+					} else {
+						if i, err := strconv.Atoi(s); err == nil || len(s) == 0 {
+							if len(s) == 0 {
+								i = 1
+							} else {
+								i++
+							}
+							if err := a.SetVal(ev.Channel.ID, "all", strconv.Itoa(i)); err != nil {
+								log.Printf("Ativity Logger SetVal Error: %v\n", err.Error())
+								log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+									ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+								return
+							}
+						} else {
+							log.Printf("Ativity Logger StrConv Error: %v\n", err.Error())
+							log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+								ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+							return
+						}
+					}
+				} else {
+					log.Printf("Ativity Logger StrConv Error: %v\n", err.Error())
+					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+					return
+				}
+			}
+		},
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
 func New(apiKey string, leadChars string) (*SlackBot, error) {
 	if len(leadChars) > 3 {
 		return nil, errors.New("Lead Characthers cannot be more than 3 characters long")
@@ -246,7 +380,7 @@ func New(apiKey string, leadChars string) (*SlackBot, error) {
 	//This Endpoint cannot be over-written
 	newBot.RegisterEndpoint("/status", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
 		rw.Write([]byte("Evil Bot!"))
-		br.RTM.PostMessage("#testing", "Someone's Touching Me!", newBot.MParams())
+		br.RTM.PostMessage("#testing", "Someone's Touching Me!", br.MParams())
 	})
 
 	log.Printf("NewBot: %#v\n", newBot)
