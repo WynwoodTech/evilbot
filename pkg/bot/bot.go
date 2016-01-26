@@ -1,6 +1,7 @@
 package evilbot
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -286,15 +287,89 @@ func (s *SlackBot) ActivityLogger() error {
 	}
 	if err := s.AddEventHandler(
 		"default-activity-logger",
-		a.ActivityLogHadler,
+		a.ActivityLogHandler,
 	); err != nil {
 		return err
 	}
-	s.RegisterEndpoint("/top5", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
+	s.RegisterEndpoint("/top5/{channelid}", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
+		ch := mux.Vars(r)["channelid"]
+		if len(ch) < 0 {
+			ch = "all"
+		}
+		if p, err := a.TopFive(ch); err == nil {
+			var cname string
+			if ch != "all" {
+				if cInfo, err := s.rtm.GetChannelInfo(ch); err == nil {
+					cname = cInfo.Name
+				} else {
+					rw.Write([]byte("Evil Bot!"))
+					return
+				}
+			} else {
+				cname = "all activity"
+			}
+			response := map[string]interface{}{
+				"channel": cname,
+				"results": p,
+			}
+			for i, pu := range p {
+				if uInfo, err := s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
+					p[i] = Pair{
+						Key:   uInfo.Name,
+						Value: pu.Value,
+					}
+				} else {
+					log.Printf("Eorror: %v\n", err)
+				}
+			}
+			w, err := json.Marshal(response)
+			if err == nil {
+				rw.Write(w)
+				return
+			}
+		}
 		rw.Write([]byte("Evil Bot!"))
-		a.TopFive("all")
 	})
 
+	s.RegisterEndpoint("/bottom5/{channelid}", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
+		ch := mux.Vars(r)["channelid"]
+		if len(ch) < 0 {
+			ch = "all"
+		}
+		if p, err := a.BottomFive(ch); err == nil {
+			var cname string
+			if ch != "all" {
+				if cInfo, err := s.rtm.GetChannelInfo(ch); err == nil {
+					cname = cInfo.Name
+				} else {
+					rw.Write([]byte("Evil Bot!"))
+					return
+				}
+			} else {
+				cname = "all activity"
+			}
+			response := map[string]interface{}{
+				"channel": cname,
+				"results": p,
+			}
+			for i, pu := range p {
+				if uInfo, err := s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
+					p[i] = Pair{
+						Key:   uInfo.Name,
+						Value: pu.Value,
+					}
+				} else {
+					log.Printf("Eorror: %v\n", err)
+				}
+			}
+			w, err := json.Marshal(response)
+			if err == nil {
+				rw.Write(w)
+				return
+			}
+		}
+		rw.Write([]byte("Evil Bot!"))
+	})
 	return nil
 }
 
@@ -361,6 +436,7 @@ func (a *ActivityLogger) log(c string, u string) error {
 
 func (a *ActivityLogger) BottomFive(channel string) (PairList, error) {
 	p := PairList{}
+	channel = strings.ToLower(channel)
 	if err := a.store.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(channel))
 
@@ -395,6 +471,7 @@ func (a *ActivityLogger) BottomFive(channel string) (PairList, error) {
 }
 
 func (a *ActivityLogger) TopFive(channel string) (PairList, error) {
+	channel = strings.ToLower(channel)
 	p := PairList{}
 	if err := a.store.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(channel))
@@ -419,7 +496,7 @@ func (a *ActivityLogger) TopFive(channel string) (PairList, error) {
 	}); err != nil {
 		return p, err
 	}
-	sort.Reverse(p)
+	sort.Sort(sort.Reverse(p))
 	var c int
 	if len(p) > 5 {
 		c = 5
@@ -429,7 +506,7 @@ func (a *ActivityLogger) TopFive(channel string) (PairList, error) {
 	return p[:c], nil
 }
 
-func (a *ActivityLogger) ActivityLogHadler(ev Event, br *Response) {
+func (a *ActivityLogger) ActivityLogHandler(ev Event, br *Response) {
 	if ev.Channel != nil && ev.User != nil {
 		go func() {
 			if err := a.log(ev.Channel.ID, ev.User.ID); err != nil {
