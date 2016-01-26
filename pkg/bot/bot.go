@@ -292,6 +292,13 @@ func (s *SlackBot) ActivityLogger() error {
 	); err != nil {
 		return err
 	}
+	if err := s.AddCmdHandler("top5", a.TopFiveHandler); err != nil {
+		return err
+	}
+	if err := s.AddCmdHandler("bottom5", a.BottomFiveHandler); err != nil {
+		return err
+	}
+
 	s.RegisterEndpoint("/top5/{channelid}", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
 		ch := mux.Vars(r)["channelid"]
 		if len(ch) < 0 {
@@ -526,36 +533,66 @@ func (a *ActivityLogger) TopFive(channel string) (PairList, error) {
 	return p[:c], nil
 }
 
+func (a *ActivityLogger) TopFiveHandler(ev Event, br *Response) {
+	if p, err := a.TopFive(ev.Channel.ID); err == nil {
+		br.SendToChannel(ev.Channel.ID, "Top 5 Active Users:")
+		for _, pu := range p {
+			if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
+				text := fmt.Sprintf("%v: %v", uInfo.Name, pu.Value)
+				br.SendToChannel(ev.Channel.ID, text)
+			}
+		}
+		return
+	}
+	br.ReplyToUser(&ev, "something went wrong")
+}
+
+func (a *ActivityLogger) BottomFiveHandler(ev Event, br *Response) {
+	if p, err := a.BottomFive(ev.Channel.ID); err == nil {
+		br.SendToChannel(ev.Channel.ID, "Bottom 5 Active Users:")
+		for _, pu := range p {
+			if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
+				text := fmt.Sprintf("%v: %v", uInfo.Name, pu.Value)
+				br.SendToChannel(ev.Channel.ID, text)
+			}
+		}
+		return
+	}
+	br.ReplyToUser(&ev, "something went wrong")
+}
+
 func (a *ActivityLogger) ActivityLogHandler(ev Event, br *Response) {
 	if ev.Channel != nil && ev.User != nil {
-		go func() {
-			if err := a.log(ev.Channel.ID, ev.User.ID); err != nil {
-				log.Printf("Channel/User Log Error: %v\n", err.Error())
-				log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-					ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-			}
-		}()
-		go func() {
-			if err := a.log("all", ev.User.ID); err != nil {
-				log.Printf("All/User Log Error: %v\n", err.Error())
-				log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-					ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-			}
-		}()
-		go func() {
-			if err := a.log(ev.Channel.ID, "all"); err != nil {
-				log.Printf("Channel/All Log Error: %v\n", err.Error())
-				log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-					ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-			}
-		}()
-		go func() {
-			if err := a.log("all", "all"); err != nil {
-				log.Printf("All/All Log Error: %v\n", err.Error())
-				log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-					ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-			}
-		}()
+		if !ev.User.IsBot {
+			go func() {
+				if err := a.log(ev.Channel.ID, ev.User.ID); err != nil {
+					log.Printf("Channel/User Log Error: %v\n", err.Error())
+					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+				}
+			}()
+			go func() {
+				if err := a.log("all", ev.User.ID); err != nil {
+					log.Printf("All/User Log Error: %v\n", err.Error())
+					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+				}
+			}()
+			go func() {
+				if err := a.log(ev.Channel.ID, "all"); err != nil {
+					log.Printf("Channel/All Log Error: %v\n", err.Error())
+					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+				}
+			}()
+			go func() {
+				if err := a.log("all", "all"); err != nil {
+					log.Printf("All/All Log Error: %v\n", err.Error())
+					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+				}
+			}()
+		}
 	}
 }
 
