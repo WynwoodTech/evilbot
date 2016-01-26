@@ -78,7 +78,7 @@ func main() {
 		log.Printf("Endpoint Error: %v\n", err)
 	}
 
-	if err := b.AcitivityLogger(); err != nil {
+	if err := b.ActivityLogger(); err != nil {
 		log.Panic(err)
 	}
 
