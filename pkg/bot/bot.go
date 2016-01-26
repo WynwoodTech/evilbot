@@ -279,6 +279,7 @@ func (s *SlackBot) ActivityLogger() error {
 	}
 	if chs, err := s.rtm.GetChannels(false); err == nil {
 		for _, ch := range chs {
+			s.rtm.JoinChannel(ch.ID)
 			log.Printf("Loading Bucket: %v\n", ch.ID)
 			if err := a.store.LoadBucket(ch.ID); err != nil {
 				return err
@@ -300,6 +301,9 @@ func (s *SlackBot) ActivityLogger() error {
 			chInfo, err := br.ChannelInfo(ch)
 			if err == nil {
 				ch = chInfo.ID
+			} else {
+				rw.Write([]byte("Evil Bot Says No!"))
+				return
 			}
 		}
 
@@ -309,7 +313,7 @@ func (s *SlackBot) ActivityLogger() error {
 				if cInfo, err := s.rtm.GetChannelInfo(ch); err == nil {
 					cname = cInfo.Name
 				} else {
-					rw.Write([]byte("Evil Bot!"))
+					rw.Write([]byte("Evil Bot Says No!"))
 					return
 				}
 			} else {
@@ -335,7 +339,7 @@ func (s *SlackBot) ActivityLogger() error {
 				return
 			}
 		}
-		rw.Write([]byte("Evil Bot!"))
+		rw.Write([]byte("Evil Bot Says No!"))
 	})
 
 	s.RegisterEndpoint("/bottom5/{channelid}", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
@@ -347,6 +351,9 @@ func (s *SlackBot) ActivityLogger() error {
 			chInfo, err := br.ChannelInfo(ch)
 			if err == nil {
 				ch = chInfo.ID
+			} else {
+				rw.Write([]byte("Evil Bot Says No!"))
+				return
 			}
 		}
 		if p, err := a.BottomFive(ch); err == nil {
@@ -355,7 +362,7 @@ func (s *SlackBot) ActivityLogger() error {
 				if cInfo, err := s.rtm.GetChannelInfo(ch); err == nil {
 					cname = cInfo.Name
 				} else {
-					rw.Write([]byte("Evil Bot!"))
+					rw.Write([]byte("Evil Bot Says No!"))
 					return
 				}
 			} else {
