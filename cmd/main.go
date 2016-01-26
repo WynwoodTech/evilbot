@@ -78,12 +78,17 @@ func main() {
 		log.Printf("Endpoint Error: %v\n", err)
 	}
 
+	if err := b.AcitivityLogger(); err != nil {
+		log.Panic(err)
+	}
+
 	//Run The Bot
 	b.RunWithHTTP("8000")
 }
 
 //These are just some example bot handlers
 func TestCmdHandler(e evilbot.Event, r *evilbot.Response) {
+	r.ReplyToUser(&e, "test")
 	log.Printf("Test Command: %v\n", e)
 }
 
