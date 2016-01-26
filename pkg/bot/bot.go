@@ -12,7 +12,7 @@ import (
 
 	"github.com/wynwoodtech/evilbot/pkg/storage"
 
-	"github.com/boltdb/bolt"
+	//"github.com/boltdb/bolt"
 	"github.com/gorilla/mux"
 	"github.com/nlopes/slack"
 )
@@ -264,90 +264,28 @@ func (s *SlackBot) RegisterEndpoint(endpoint string, method string, hf EPHandler
 	return r.Name(name).Path(endpoint).Methods(strings.ToUpper(method)).HandlerFunc(s.Wrap(hf)).GetError()
 }
 
-func (s *SlackBot) AcitivityLogger() error {
-	a, err := storage.Load("activity_logger")
+func (s *SlackBot) ActivityLogger() error {
+	a := ActivityLogger{}
+	a.s = s
+	var err error
+	a.store, err = storage.Load("activity_logger")
 	if err != nil {
 		return err
 	}
-	if err := a.LoadBucket("all"); err != nil {
+	if err := a.store.LoadBucket("all"); err != nil {
 		return err
 	}
 	if chs, err := s.rtm.GetChannels(false); err == nil {
 		for _, ch := range chs {
 			log.Printf("Loading Bucket: %v\n", ch.ID)
-			if err := a.LoadBucket(ch.ID); err != nil {
+			if err := a.store.LoadBucket(ch.ID); err != nil {
 				return err
 			}
 		}
 	}
 	if err := s.AddEventHandler(
 		"default-activity-logger",
-		func(ev Event, br *Response) {
-			if ev.Channel != nil && ev.User != nil {
-				s, err := a.GetVal(ev.Channel.ID, ev.User.ID)
-				if err != nil {
-					if err.Error() != "no value" {
-						a.DB.View(func(tx *bolt.Tx) error {
-							tx.ForEach(func(name []byte, b *bolt.Bucket) error {
-								log.Printf("Bucket Name: %v\n", string(name))
-								return nil
-							})
-							return nil
-						})
-						log.Printf("GetVal Error: %v\n", err.Error())
-						log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-							ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-						return
-					}
-				}
-				log.Printf("%v's Score: %v\n:", ev.User.Name, s)
-				if i, err := strconv.Atoi(s); err == nil || len(s) == 0 {
-					if len(s) == 0 {
-						i = 1
-					} else {
-						i++
-					}
-					if err := a.SetVal(ev.Channel.ID, ev.User.ID, strconv.Itoa(i)); err != nil {
-						log.Printf("Set Val Ativity Logger Error: %v\n", err.Error())
-						log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-							ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-						return
-					}
-					if s, err := a.GetVal(ev.Channel.ID, "all"); err != nil {
-						if err.Error() != "no value" {
-							log.Printf("GetVal Activity Logger Error: %v\n", err.Error())
-							log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-								ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-							return
-						}
-					} else {
-						if i, err := strconv.Atoi(s); err == nil || len(s) == 0 {
-							if len(s) == 0 {
-								i = 1
-							} else {
-								i++
-							}
-							if err := a.SetVal(ev.Channel.ID, "all", strconv.Itoa(i)); err != nil {
-								log.Printf("Ativity Logger SetVal Error: %v\n", err.Error())
-								log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-									ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-								return
-							}
-						} else {
-							log.Printf("Ativity Logger StrConv Error: %v\n", err.Error())
-							log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-								ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-							return
-						}
-					}
-				} else {
-					log.Printf("Ativity Logger StrConv Error: %v\n", err.Error())
-					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-					return
-				}
-			}
-		},
+		a.ActivityLogHadler,
 	); err != nil {
 		return err
 	}
@@ -385,4 +323,65 @@ func New(apiKey string, leadChars string) (*SlackBot, error) {
 
 	log.Printf("NewBot: %#v\n", newBot)
 	return &newBot, nil
+}
+
+type ActivityLogger struct {
+	store *storage.Store
+	s     *SlackBot
+}
+
+func (a *ActivityLogger) log(c string, u string) error {
+	s, err := a.store.GetVal(c, u)
+	if err != nil && err.Error() != "no value" {
+		log.Println("GetVal Error")
+		return err
+	}
+	if i, err := strconv.Atoi(s); err == nil || len(s) == 0 {
+		if len(s) == 0 {
+			i = 1
+		} else {
+			i++
+		}
+		if a.s.logging {
+			log.Printf("Logger: %v %v Count - %v\n", c, u, i)
+		}
+		if err := a.store.SetVal(c, u, strconv.Itoa(i)); err != nil {
+			log.Println("SetVal Error")
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *ActivityLogger) ActivityLogHadler(ev Event, br *Response) {
+	if ev.Channel != nil && ev.User != nil {
+		go func() {
+			if err := a.log(ev.Channel.ID, ev.User.ID); err != nil {
+				log.Printf("Channel/User Log Error: %v\n", err.Error())
+				log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+					ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+			}
+		}()
+		go func() {
+			if err := a.log("all", ev.User.ID); err != nil {
+				log.Printf("All/User Log Error: %v\n", err.Error())
+				log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+					ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+			}
+		}()
+		go func() {
+			if err := a.log(ev.Channel.ID, "all"); err != nil {
+				log.Printf("Channel/All Log Error: %v\n", err.Error())
+				log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+					ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+			}
+		}()
+		go func() {
+			if err := a.log("all", "all"); err != nil {
+				log.Printf("All/All Log Error: %v\n", err.Error())
+				log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+					ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+			}
+		}()
+	}
 }

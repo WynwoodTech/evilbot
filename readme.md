@@ -23,7 +23,6 @@ Standard Feature List:
 
 Wynwood Tech E-Bot Sepcific:
 - [ ] Modify our ranking algorithm to have some smarts. 
-- [ ] Modify our ranking algorithm to have some smarts. 
 - [ ] Interact with the starndard slackbot in some way. 
     - [ ] Epic bot rap battles
 
