@@ -296,6 +296,13 @@ func (s *SlackBot) ActivityLogger() error {
 		if len(ch) < 0 {
 			ch = "all"
 		}
+		if ch != "all" {
+			chInfo, err := br.ChannelInfo(ch)
+			if err == nil {
+				ch = chInfo.ID
+			}
+		}
+
 		if p, err := a.TopFive(ch); err == nil {
 			var cname string
 			if ch != "all" {
@@ -335,6 +342,12 @@ func (s *SlackBot) ActivityLogger() error {
 		ch := mux.Vars(r)["channelid"]
 		if len(ch) < 0 {
 			ch = "all"
+		}
+		if ch != "all" {
+			chInfo, err := br.ChannelInfo(ch)
+			if err == nil {
+				ch = chInfo.ID
+			}
 		}
 		if p, err := a.BottomFive(ch); err == nil {
 			var cname string
