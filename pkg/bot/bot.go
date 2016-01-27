@@ -115,6 +115,16 @@ func (r *Response) ReplyToUser(e *Event, text string) error {
 	return nil
 
 }
+func (r *Response) UserInfo(uname string) (slack.User, error) {
+	if users, err := r.RTM.GetUsers(); err == nil {
+		for _, u := range users {
+			if strings.ToLower(u.Name) == strings.ToLower(uname) {
+				return u, nil
+			}
+		}
+	}
+	return slack.User{}, errors.New("could not find member")
+}
 
 //Get Channel Info by channel name
 func (r *Response) ChannelInfo(cname string) (slack.Channel, error) {
@@ -296,6 +306,10 @@ func (s *SlackBot) ActivityLogger() error {
 	if err := a.store.LoadBucket("all"); err != nil {
 		return err
 	}
+	if err := a.store.LoadBucket("seen"); err != nil {
+		return err
+	}
+
 	if chs, err := s.rtm.GetChannels(false); err == nil {
 		for _, ch := range chs {
 			s.rtm.JoinChannel(ch.ID)
@@ -317,6 +331,32 @@ func (s *SlackBot) ActivityLogger() error {
 	if err := s.AddCmdHandler("bottom5", a.BottomFiveHandler); err != nil {
 		return err
 	}
+
+	s.AddCmdHandler("seen", func(e Event, br *Response) {
+		var response string
+		if e.Channel != nil {
+			log.Printf("Args: %v", e.ArgStr)
+			if len(e.ArgStr) > 0 {
+				u := strings.Split(e.ArgStr, " ")
+				if uInfo, err := br.UserInfo(u[0]); err == nil {
+					if t, err := a.Seen(strings.ToLower(uInfo.ID)); err == nil {
+						tf := t.Format("Jan 2 2006 03:04 PM EST")
+						response = fmt.Sprintf("%v last seen on %v", u[0], tf)
+						br.SendToChannel(e.Channel.ID, response)
+						return
+					}
+				} else {
+					log.Printf("Error: %v\n", err)
+				}
+				response = fmt.Sprintf("%v not seen", u[0])
+			} else {
+				response = "which user?"
+			}
+		} else {
+			response = "only in channel"
+		}
+		br.ReplyToUser(&e, response)
+	})
 
 	s.RegisterEndpoint("/top5/{channelid}", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
 		ch := mux.Vars(r)["channelid"]
@@ -465,6 +505,32 @@ type ActivityLogger struct {
 	s     *SlackBot
 }
 
+func (a *ActivityLogger) logtime(u string) error {
+	t, err := time.Now().MarshalText()
+	if err != nil {
+		log.Println("Time Error")
+		return err
+	}
+	if err := a.store.SetVal("seen", u, string(t)); err != nil && err.Error() != "no value" {
+		log.Println("SetVal Error")
+		return err
+	}
+	return nil
+}
+
+func (a *ActivityLogger) Seen(u string) (time.Time, error) {
+	t := time.Time{}
+	s, err := a.store.GetVal("seen", u)
+	if err != nil {
+		log.Println("GetVal Error")
+		return t, err
+	}
+	if err := t.UnmarshalText([]byte(s)); err != nil {
+		return t, err
+	}
+	return t, nil
+}
+
 func (a *ActivityLogger) log(c string, u string) error {
 	s, err := a.store.GetVal(c, u)
 	if err != nil && err.Error() != "no value" {
@@ -561,28 +627,39 @@ func (a *ActivityLogger) TopFive(channel string) (PairList, error) {
 }
 
 func (a *ActivityLogger) TopFiveHandler(ev Event, br *Response) {
-	if p, err := a.TopFive(ev.Channel.ID); err == nil {
-		br.SendToChannel(ev.Channel.ID, "Top 5 Active Users:")
-		for _, pu := range p {
-			if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
-				text := fmt.Sprintf("%v: %v", uInfo.Name, pu.Value)
-				br.SendToChannel(ev.Channel.ID, text)
+	if ev.Channel != nil {
+		if p, err := a.TopFive(ev.Channel.ID); err == nil {
+			br.SendToChannel(ev.Channel.ID, "Top 5 Active Users:")
+			for _, pu := range p {
+				if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
+					text := fmt.Sprintf("%v: %v", uInfo.Name, pu.Value)
+					br.SendToChannel(ev.Channel.ID, text)
+				}
 			}
+			return
 		}
+	} else {
+		br.ReplyToUser(&ev, "Only in a channel")
 		return
 	}
 	br.ReplyToUser(&ev, "something went wrong")
 }
 
 func (a *ActivityLogger) BottomFiveHandler(ev Event, br *Response) {
-	if p, err := a.BottomFive(ev.Channel.ID); err == nil {
-		br.SendToChannel(ev.Channel.ID, "Bottom 5 Active Users:")
-		for _, pu := range p {
-			if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
-				text := fmt.Sprintf("%v: %v", uInfo.Name, pu.Value)
-				br.SendToChannel(ev.Channel.ID, text)
+	if ev.Channel != nil {
+		if p, err := a.BottomFive(ev.Channel.ID); err == nil {
+			br.SendToChannel(ev.Channel.ID, "Bottom 5 Active Users:")
+			for _, pu := range p {
+				if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
+					text := fmt.Sprintf("%v: %v", uInfo.Name, pu.Value)
+					br.SendToChannel(ev.Channel.ID, text)
+				}
 			}
+			return
 		}
+	} else {
+
+		br.ReplyToUser(&ev, "Only in a channel")
 		return
 	}
 	br.ReplyToUser(&ev, "something went wrong")
@@ -591,6 +668,13 @@ func (a *ActivityLogger) BottomFiveHandler(ev Event, br *Response) {
 func (a *ActivityLogger) ActivityLogHandler(ev Event, br *Response) {
 	if ev.Channel != nil && ev.User != nil {
 		if !ev.User.IsBot {
+			go func() {
+				if err := a.logtime(ev.User.ID); err != nil {
+					log.Printf("LogTime Log Error: %v\n", err.Error())
+					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
+						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
+				}
+			}()
 			go func() {
 				if err := a.log(ev.Channel.ID, ev.User.ID); err != nil {
 					log.Printf("Channel/User Log Error: %v\n", err.Error())
