@@ -629,13 +629,17 @@ func (a *ActivityLogger) TopFive(channel string) (PairList, error) {
 func (a *ActivityLogger) TopFiveHandler(ev Event, br *Response) {
 	if ev.Channel != nil {
 		if p, err := a.TopFive(ev.Channel.ID); err == nil {
-			br.SendToChannel(ev.Channel.ID, "Top 5 Active Users:")
+			var rtext string
+			rtext += "Top 5 Active Users:\n"
+			//br.SendToChannel(ev.Channel.ID, "Top 5 Active Users:")
 			for _, pu := range p {
 				if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
-					text := fmt.Sprintf("%v: %v", uInfo.Name, pu.Value)
-					br.SendToChannel(ev.Channel.ID, text)
+					text := fmt.Sprintf("%v:\t%v", uInfo.Name, pu.Value)
+					rtext += fmt.Sprintf("\t%v\n", text)
+					//br.SendToChannel(ev.Channel.ID, text)
 				}
 			}
+			br.SendToChannel(ev.Channel.ID, rtext)
 			return
 		}
 	} else {
