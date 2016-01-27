@@ -30,6 +30,7 @@ type SlackBot struct {
 	name     string
 	logging  bool
 	leadchar string
+	userid   string
 	conn     *slack.Client
 	rtm      *slack.RTM
 	handlers []EventHandler
@@ -136,6 +137,22 @@ func (r *Response) SendToChannel(channel string, text string) error {
 	return nil
 }
 
+func (s *SlackBot) CurrentChannels() []slack.Channel {
+	response := []slack.Channel{}
+	if chs, err := s.rtm.GetChannels(true); err == nil {
+		for _, ch := range chs {
+			for _, u := range ch.Members {
+				log.Printf("User: %v\n", u)
+				log.Printf("Me  : %v\n", s.userid)
+				if u == s.userid {
+					response = append(response, ch)
+				}
+			}
+		}
+	}
+	return response
+}
+
 func (s *SlackBot) HandleEvent(e *slack.MessageEvent) {
 	ev := Event{}
 	ev.LeadChar = s.leadchar
@@ -206,7 +223,9 @@ func (s *SlackBot) RunWithHTTP(port string) {
 
 	go http.ListenAndServe(fmt.Sprintf(":%v", port), s.netcon.router)
 	s.run()
+
 }
+
 func (s *SlackBot) run() {
 
 	go s.rtm.ManageConnection()
@@ -404,13 +423,14 @@ func New(apiKey string, leadChars string) (*SlackBot, error) {
 	if len(leadChars) > 3 {
 		return nil, errors.New("Lead Characthers cannot be more than 3 characters long")
 	}
+	newBot := SlackBot{}
 	api := slack.New(apiKey)
 	rtm := api.NewRTM()
-	if _, err := rtm.AuthTest(); err != nil {
+	if at, err := rtm.AuthTest(); err != nil {
 		return nil, err
+	} else {
+		newBot.userid = at.UserID
 	}
-
-	newBot := SlackBot{}
 
 	newBot.name = apiKey
 	newBot.conn = api
@@ -427,6 +447,13 @@ func New(apiKey string, leadChars string) (*SlackBot, error) {
 	newBot.RegisterEndpoint("/status", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
 		rw.Write([]byte("Evil Bot!"))
 		br.RTM.PostMessage("#testing", "Someone's Touching Me!", br.MParams())
+	})
+
+	newBot.AddCmdHandler("channels", func(e Event, br *Response) {
+		br.SendToChannel(e.Channel.ID, "Channels I'm In:")
+		for _, ch := range newBot.CurrentChannels() {
+			br.SendToChannel(e.Channel.ID, ch.Name)
+		}
 	})
 
 	log.Printf("NewBot: %#v\n", newBot)
