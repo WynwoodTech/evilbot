@@ -32,7 +32,7 @@ func main() {
 	log.Printf("DB Loaded: %v\n", db)
 	//Start a New Bot given the API Key and a command indntifier
 	//Command identifier cannot be longer than 3 charachters
-	b, err := evilbot.New(api_key, ".")
+	b, err := evilbot.New(api_key, "!")
 	if err != nil {
 		log.Println("Not Authenticated, please check your ENV Setting")
 		return
