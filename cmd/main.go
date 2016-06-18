@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/wynwoodtech/evilbot/pkg/activitylog"
 	"github.com/wynwoodtech/evilbot/pkg/bot"
 	"github.com/wynwoodtech/evilbot/pkg/storage"
 
@@ -74,14 +75,14 @@ func main() {
 		log.Printf("Reading Error: %v\n", err)
 	}
 	//Turn on logging to see ALL Incoming data
-	b.Logging(true)
+	b.SetLogging(true)
 
 	//Register Additional Endpoints
 	if err := b.RegisterEndpoint("/test/{channel}", "get", TestHTTPHandler); err != nil {
 		log.Printf("Endpoint Error: %v\n", err)
 	}
 
-	if err := b.ActivityLogger(); err != nil {
+	if err := activitylog.NewLogger(b); err != nil {
 		log.Panic(err)
 	}
 
