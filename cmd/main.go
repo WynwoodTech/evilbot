@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/wynwoodtech/evilbot/pkg/activitylog"
 	"github.com/wynwoodtech/evilbot/pkg/bot"
@@ -47,6 +49,10 @@ func main() {
 	b.AddCmdHandler(
 		"help",
 		TestCmdHandler2,
+	)
+	b.AddCmdHandler(
+		"speak",
+		SpeakCmdHandler,
 	)
 	//Adding general purpose event handlers. These can be used for anything other than a command
 	//example would be keeping track of when a person was last active
@@ -98,6 +104,38 @@ func TestCmdHandler(e evilbot.Event, r *evilbot.Response) {
 
 func TestCmdHandler2(e evilbot.Event, r *evilbot.Response) {
 	log.Printf("Test Command2: %v\n", e)
+}
+
+func SpeakCmdHandler(e evilbot.Event, r *evilbot.Response) {
+	if e.Channel == nil {
+		params := strings.Split(e.ArgStr, " ")
+		cleanparams := []string{}
+		checkNick := regexp.MustCompile("<@([A-Z]\\w+)>")
+		checkPunct := regexp.MustCompile("([,.!?\\/-]+)")
+		for _, param := range params {
+			userMatch := checkNick.FindSubmatch([]byte(param))
+			if len(userMatch) > 1 {
+				if user, err := r.RTM.GetUserInfo(string(userMatch[1])); err != nil {
+					r.ReplyToUser(&e, "invalid user mentioned")
+					return
+				} else {
+					punctMatch := checkPunct.FindSubmatch([]byte(param))
+					var returnNick string
+					if len(punctMatch) > 1 {
+						returnNick = "@" + user.Name + string(punctMatch[1])
+					} else {
+						returnNick = "@" + user.Name
+					}
+					cleanparams = append(cleanparams, returnNick)
+				}
+			} else {
+				cleanparams = append(cleanparams, param)
+			}
+		}
+		if len(cleanparams) > 0 {
+			r.SendToChannel("general", strings.Join(cleanparams, " "))
+		}
+	}
 }
 
 func TestGeneralHandler(e evilbot.Event, r *evilbot.Response) {
