@@ -90,6 +90,7 @@ func (e *Event) ParseCommand(cmd string) error {
 
 type Response struct {
 	RTM *slack.RTM
+	Bot *SlackBot
 }
 
 //Reply's to User.
