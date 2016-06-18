@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,6 +57,9 @@ func NewLogger(s *evilbot.SlackBot) error {
 		return err
 	}
 	if err := s.AddCmdHandler("bottom5", a.BottomFiveHandler); err != nil {
+		return err
+	}
+	if err := s.AddCmdHandler("seen", a.SeenHandler); err != nil {
 		return err
 	}
 
@@ -363,6 +367,44 @@ func (a *ActivityLogger) BottomFiveHandler(ev evilbot.Event, br *evilbot.Respons
 		return
 	}
 	br.ReplyToUser(&ev, "something went wrong")
+}
+
+func (a *ActivityLogger) SeenHandler(e evilbot.Event, r *evilbot.Response) {
+	userString := strings.Split(e.ArgStr, " ")
+	var userName string
+	var userID string
+	reg := regexp.MustCompile("<@([A-Z]\\w+)>")
+	regUser := reg.FindSubmatch([]byte(userString[0]))
+	if len(regUser) > 1 {
+		userID = string(regUser[1])
+	} else {
+		userName = userString[0]
+	}
+	if len(userID) > 0 {
+		user, err := r.RTM.GetUserInfo(userID)
+		if err == nil {
+			if t, err := a.Seen(user.ID); err == nil {
+				lastSeen := t.Format("Mon Jan _2 2006 15:04")
+				r.SendToChannel(e.Channel.Name, user.Name+" was last seen on: "+lastSeen)
+				return
+			}
+		}
+		r.ReplyToUser(&e, userID+" is not a valid user")
+		return
+	}
+	if allUsers, err := r.RTM.GetUsers(); err == nil {
+		for _, user := range allUsers {
+			if user.Name != userName {
+				continue
+			}
+			if t, err := a.Seen(user.ID); err == nil {
+				lastSeen := t.Format("Mon Jan _2 2006 3:04 PM")
+				r.SendToChannel(e.Channel.Name, user.Name+" was last seen on: "+lastSeen)
+				return
+			}
+		}
+	}
+	r.ReplyToUser(&e, userName+" is not a valid user")
 }
 
 func (a *ActivityLogger) ActivityLogHandler(ev evilbot.Event, br *evilbot.Response) {
