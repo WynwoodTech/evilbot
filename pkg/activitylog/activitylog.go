@@ -443,7 +443,7 @@ func (a *ActivityLogger) SeenHandler(e evilbot.Event, r *evilbot.Response) {
 	userString := strings.Split(e.ArgStr, " ")
 	var userName string
 	var userID string
-	reg := regexp.MustCompile("<@([A-Z]\\w+)>")
+	reg := regexp.MustCompile("<@(\\w+)>")
 	regUser := reg.FindSubmatch([]byte(userString[0]))
 	if len(regUser) > 1 {
 		userID = string(regUser[1])

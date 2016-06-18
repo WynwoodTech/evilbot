@@ -108,12 +108,15 @@ func TestCmdHandler2(e evilbot.Event, r *evilbot.Response) {
 
 func SpeakCmdHandler(e evilbot.Event, r *evilbot.Response) {
 	if e.Channel == nil {
+		log.Printf("%v is using the speak command", e.User.Name)
 		params := strings.Split(e.ArgStr, " ")
 		cleanparams := []string{}
-		checkNick := regexp.MustCompile("<@([A-Z]\\w+)>")
+		checkNick := regexp.MustCompile("<@(\\w+)>")
+		checkChan := regexp.MustCompile("<#(\\w+)>")
 		checkPunct := regexp.MustCompile("([,.!?\\/-]+)")
 		for _, param := range params {
 			userMatch := checkNick.FindSubmatch([]byte(param))
+			chanMatch := checkChan.FindSubmatch([]byte(param))
 			if len(userMatch) > 1 {
 				if user, err := r.RTM.GetUserInfo(string(userMatch[1])); err != nil {
 					r.ReplyToUser(&e, "invalid user mentioned")
@@ -127,6 +130,21 @@ func SpeakCmdHandler(e evilbot.Event, r *evilbot.Response) {
 						returnNick = "@" + user.Name
 					}
 					cleanparams = append(cleanparams, returnNick)
+				}
+			} else if len(chanMatch) > 1 {
+				if channel, err := r.RTM.GetChannelInfo(string(chanMatch[1])); err != nil {
+					r.ReplyToUser(&e, "invalid channel mention")
+					return
+				} else {
+					punctMatch := checkPunct.FindSubmatch([]byte(param))
+					var returnChan string
+					if len(punctMatch) > 1 {
+						returnChan = "#" + channel.Name + string(punctMatch[1])
+					} else {
+						returnChan = "@" + channel.Name
+					}
+					cleanparams = append(cleanparams, returnChan)
+
 				}
 			} else {
 				cleanparams = append(cleanparams, param)
