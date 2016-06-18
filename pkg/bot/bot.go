@@ -1,20 +1,15 @@
 package evilbot
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/wynwoodtech/evilbot/pkg/storage"
-
-	"github.com/boltdb/bolt"
 	"github.com/gorilla/mux"
 	"github.com/nlopes/slack"
 )
@@ -28,11 +23,11 @@ func (r *Response) MParams() slack.PostMessageParameters {
 
 type SlackBot struct {
 	name     string
-	logging  bool
+	Logging  bool
 	leadchar string
 	userid   string
 	conn     *slack.Client
-	rtm      *slack.RTM
+	RTM      *slack.RTM
 	handlers []EventHandler
 	commands []EventHandler
 	netcon   *NetConn
@@ -63,7 +58,7 @@ type EPHandlerFunc func(rw http.ResponseWriter, r *http.Request, br *Response)
 func (s *SlackBot) Wrap(h EPHandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rb := Response{}
-		rb.RTM = s.rtm
+		rb.RTM = s.RTM
 		h(rw, r, &rb)
 	})
 }
@@ -149,7 +144,7 @@ func (r *Response) SendToChannel(channel string, text string) error {
 
 func (s *SlackBot) CurrentChannels() []slack.Channel {
 	response := []slack.Channel{}
-	if chs, err := s.rtm.GetChannels(true); err == nil {
+	if chs, err := s.RTM.GetChannels(true); err == nil {
 		for _, ch := range chs {
 			for _, u := range ch.Members {
 				log.Printf("User: %v\n", u)
@@ -163,11 +158,40 @@ func (s *SlackBot) CurrentChannels() []slack.Channel {
 	return response
 }
 
+func (s *SlackBot) JoinEvent(e *slack.TeamJoinEvent) {
+	ev := Event{}
+	ev.User = e.User
+	s.HandleJoin(ev)
+}
+
+func (s *SlackBot) HandleJoin(e Event) {
+	time.Sleep(600 * time.Millisecond)
+	phrases := []string{
+		"Wynwood-Tech",
+		"the best internet group since sliced bread",
+		"the dark abyss",
+		"Jamrock",
+		"the interwebz",
+		"the beginning of the rest of your life",
+	}
+
+	msgParams := slack.NewPostMessageParameters()
+	msgParams.AsUser = true
+	msgParams.LinkNames = 1
+	msgString := fmt.Sprintf(
+		"Hey @%v, welcome to %s! Make sure you update your avatar.",
+		e.User.Name,
+		phrases[rand.Intn(len(phrases))],
+	)
+	s.RTM.PostMessage("#general", msgString, msgParams)
+	msgString = "I am Evil Bot here to serve and entertain. My commands are largely Easter-eggs... but you can always ask for !top5."
+	s.RTM.PostMessage("#general", msgString, msgParams)
+}
 func (s *SlackBot) HandleEvent(e *slack.MessageEvent) {
 	ev := Event{}
 	ev.LeadChar = s.leadchar
-	ev.User, _ = s.rtm.GetUserInfo(e.User)
-	ev.Channel, _ = s.rtm.GetChannelInfo(e.Channel)
+	ev.User, _ = s.RTM.GetUserInfo(e.User)
+	ev.Channel, _ = s.RTM.GetChannelInfo(e.Channel)
 	ev.ArgStr = e.Text
 	s.HandleMsg(ev)
 	if err := ev.ParseCommand(e.Text); err == nil {
@@ -179,7 +203,7 @@ func (s *SlackBot) HandleCmd(e Event) {
 	for _, cmd := range s.commands {
 		if strings.ToLower(e.Command) == strings.ToLower(cmd.Name) {
 			r := Response{}
-			r.RTM = s.rtm
+			r.RTM = s.RTM
 			cmd.Handle.ServeHandler(e, &r)
 		}
 	}
@@ -188,7 +212,7 @@ func (s *SlackBot) HandleCmd(e Event) {
 func (s *SlackBot) HandleMsg(e Event) {
 	for _, ev := range s.handlers {
 		r := Response{}
-		r.RTM = s.rtm
+		r.RTM = s.RTM
 		ev.Handle.ServeHandler(e, &r)
 	}
 }
@@ -223,8 +247,8 @@ func (s *SlackBot) AddEventHandler(name string, ev HandlerFunc) error {
 	return nil
 }
 
-func (s *SlackBot) Logging(b bool) {
-	s.logging = b
+func (s *SlackBot) SetLogging(b bool) {
+	s.Logging = b
 }
 func (s *SlackBot) Run() {
 	s.run()
@@ -238,15 +262,18 @@ func (s *SlackBot) RunWithHTTP(port string) {
 
 func (s *SlackBot) run() {
 
-	go s.rtm.ManageConnection()
+	go s.RTM.ManageConnection()
 Loop:
 	for {
 		select {
-		case msg := <-s.rtm.IncomingEvents:
-			if s.logging {
+		case msg := <-s.RTM.IncomingEvents:
+			if s.Logging {
 				log.Printf("Logger: %#v\n", msg.Data)
 			}
 			switch ev := msg.Data.(type) {
+			case *slack.TeamJoinEvent:
+				go s.JoinEvent(ev)
+
 			case *slack.HelloEvent:
 				// Ignore hello
 
@@ -295,170 +322,6 @@ func (s *SlackBot) RegisterEndpoint(endpoint string, method string, hf EPHandler
 	return r.Name(name).Path(endpoint).Methods(strings.ToUpper(method)).HandlerFunc(s.Wrap(hf)).GetError()
 }
 
-func (s *SlackBot) ActivityLogger() error {
-	a := ActivityLogger{}
-	a.s = s
-	var err error
-	a.store, err = storage.Load("activity_logger")
-	if err != nil {
-		return err
-	}
-	if err := a.store.LoadBucket("all"); err != nil {
-		return err
-	}
-	if err := a.store.LoadBucket("seen"); err != nil {
-		return err
-	}
-
-	if chs, err := s.rtm.GetChannels(false); err == nil {
-		for _, ch := range chs {
-			s.rtm.JoinChannel(ch.ID)
-			log.Printf("Loading Bucket: %v\n", ch.ID)
-			if err := a.store.LoadBucket(ch.ID); err != nil {
-				return err
-			}
-		}
-	}
-	if err := s.AddEventHandler(
-		"default-activity-logger",
-		a.ActivityLogHandler,
-	); err != nil {
-		return err
-	}
-	if err := s.AddCmdHandler("top5", a.TopFiveHandler); err != nil {
-		return err
-	}
-	if err := s.AddCmdHandler("bottom5", a.BottomFiveHandler); err != nil {
-		return err
-	}
-
-	s.AddCmdHandler("seen", func(e Event, br *Response) {
-		var response string
-		if e.Channel != nil {
-			log.Printf("Args: %v", e.ArgStr)
-			if len(e.ArgStr) > 0 {
-				u := strings.Split(e.ArgStr, " ")
-				if uInfo, err := br.UserInfo(u[0]); err == nil {
-					if t, err := a.Seen(strings.ToLower(uInfo.ID)); err == nil {
-						tf := t.Format("Jan 2 2006 03:04 PM EST")
-						response = fmt.Sprintf("%v last seen on %v", u[0], tf)
-						br.SendToChannel(e.Channel.ID, response)
-						return
-					}
-				} else {
-					log.Printf("Error: %v\n", err)
-				}
-				response = fmt.Sprintf("%v not seen", u[0])
-			} else {
-				response = "which user?"
-			}
-		} else {
-			response = "only in channel"
-		}
-		br.ReplyToUser(&e, response)
-	})
-
-	s.RegisterEndpoint("/top5/{channelid}", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
-		ch := mux.Vars(r)["channelid"]
-		if len(ch) < 0 {
-			ch = "all"
-		}
-		if ch != "all" {
-			chInfo, err := br.ChannelInfo(ch)
-			if err == nil {
-				ch = chInfo.ID
-			} else {
-				rw.Write([]byte("Evil Bot Says No!"))
-				return
-			}
-		}
-
-		if p, err := a.TopFive(ch); err == nil {
-			var cname string
-			if ch != "all" {
-				if cInfo, err := s.rtm.GetChannelInfo(ch); err == nil {
-					cname = cInfo.Name
-				} else {
-					rw.Write([]byte("Evil Bot Says No!"))
-					return
-				}
-			} else {
-				cname = "all activity"
-			}
-			response := map[string]interface{}{
-				"channel": cname,
-				"results": p,
-			}
-			for i, pu := range p {
-				if uInfo, err := s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
-					p[i] = Pair{
-						Key:   uInfo.Name,
-						Value: pu.Value,
-					}
-				} else {
-					log.Printf("Eorror: %v\n", err)
-				}
-			}
-			w, err := json.Marshal(response)
-			if err == nil {
-				rw.Write(w)
-				return
-			}
-		}
-		rw.Write([]byte("Evil Bot Says No!"))
-	})
-
-	s.RegisterEndpoint("/bottom5/{channelid}", "get", func(rw http.ResponseWriter, r *http.Request, br *Response) {
-		ch := mux.Vars(r)["channelid"]
-		if len(ch) < 0 {
-			ch = "all"
-		}
-		if ch != "all" {
-			chInfo, err := br.ChannelInfo(ch)
-			if err == nil {
-				ch = chInfo.ID
-			} else {
-				rw.Write([]byte("Evil Bot Says No!"))
-				return
-			}
-		}
-		if p, err := a.BottomFive(ch); err == nil {
-			var cname string
-			if ch != "all" {
-				if cInfo, err := s.rtm.GetChannelInfo(ch); err == nil {
-					cname = cInfo.Name
-				} else {
-					rw.Write([]byte("Evil Bot Says No!"))
-					return
-				}
-			} else {
-				cname = "all activity"
-			}
-			response := map[string]interface{}{
-				"channel": cname,
-				"results": p,
-			}
-			for i, pu := range p {
-				if uInfo, err := s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
-					p[i] = Pair{
-						Key:   uInfo.Name,
-						Value: pu.Value,
-					}
-				} else {
-					log.Printf("Eorror: %v\n", err)
-				}
-			}
-			w, err := json.Marshal(response)
-			if err == nil {
-				rw.Write(w)
-				return
-			}
-		}
-		rw.Write([]byte("Evil Bot!"))
-	})
-	return nil
-}
-
 func New(apiKey string, leadChars string) (*SlackBot, error) {
 	if len(leadChars) > 3 {
 		return nil, errors.New("Lead Characthers cannot be more than 3 characters long")
@@ -474,7 +337,7 @@ func New(apiKey string, leadChars string) (*SlackBot, error) {
 
 	newBot.name = apiKey
 	newBot.conn = api
-	newBot.rtm = rtm
+	newBot.RTM = rtm
 	newBot.leadchar = leadChars
 
 	r := mux.NewRouter()
@@ -503,242 +366,3 @@ func New(apiKey string, leadChars string) (*SlackBot, error) {
 	log.Printf("NewBot: %#v\n", newBot)
 	return &newBot, nil
 }
-
-type ActivityLogger struct {
-	store *storage.Store
-	s     *SlackBot
-}
-
-func (a *ActivityLogger) logtime(u string) error {
-	t, err := time.Now().MarshalText()
-	if err != nil {
-		log.Println("Time Error")
-		return err
-	}
-	if err := a.store.SetVal("seen", u, string(t)); err != nil && err.Error() != "no value" {
-		log.Println("SetVal Error")
-		return err
-	}
-	return nil
-}
-
-func (a *ActivityLogger) Seen(u string) (time.Time, error) {
-	t := time.Time{}
-	s, err := a.store.GetVal("seen", u)
-	if err != nil {
-		log.Println("GetVal Error")
-		return t, err
-	}
-	if err := t.UnmarshalText([]byte(s)); err != nil {
-		return t, err
-	}
-	return t, nil
-}
-
-func (a *ActivityLogger) log(c string, u string) error {
-	s, err := a.store.GetVal(c, u)
-	if err != nil && err.Error() != "no value" {
-		log.Println("GetVal Error")
-		return err
-	}
-	if i, err := strconv.Atoi(s); err == nil || len(s) == 0 {
-		if len(s) == 0 {
-			i = 1
-		} else {
-			i++
-		}
-		if a.s.logging {
-			log.Printf("Logger: %v %v Count - %v\n", c, u, i)
-		}
-		if err := a.store.SetVal(c, u, strconv.Itoa(i)); err != nil {
-			log.Println("SetVal Error")
-			return err
-		}
-	}
-	return nil
-}
-
-func (a *ActivityLogger) BottomFive(channel string) (PairList, error) {
-	p := PairList{}
-	channel = strings.ToLower(channel)
-	if err := a.store.DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(channel))
-
-		if err := b.ForEach(func(k, v []byte) error {
-			u := string(k)
-			if u == "all" || u == "slackbot" {
-				return nil
-			}
-			vi, err := strconv.Atoi(string(v))
-			if err != nil {
-				return err
-			}
-			if vi > 0 {
-				p = append(p, Pair{u, vi})
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return p, err
-	}
-	sort.Sort(p)
-	var c int
-	if len(p) > 5 {
-		c = 5
-	} else {
-		c = len(p)
-	}
-	return p[:c], nil
-}
-
-func (a *ActivityLogger) TopFive(channel string) (PairList, error) {
-	channel = strings.ToLower(channel)
-	p := PairList{}
-	if err := a.store.DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(channel))
-
-		if err := b.ForEach(func(k, v []byte) error {
-			u := string(k)
-			if u == "all" || u == "slackbot" {
-				return nil
-			}
-			vi, err := strconv.Atoi(string(v))
-			if err != nil {
-				return err
-			}
-			if vi > 0 {
-				p = append(p, Pair{u, vi})
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return p, err
-	}
-	sort.Sort(sort.Reverse(p))
-	var c int
-	if len(p) > 5 {
-		c = 5
-	} else {
-		c = len(p)
-	}
-	return p[:c], nil
-}
-
-func (a *ActivityLogger) TopFiveHandler(ev Event, br *Response) {
-	if ev.Channel != nil {
-		if strings.ToLower(ev.Channel.Name) == "general" ||
-			strings.ToLower(ev.Channel.Name) == "random" {
-			br.ReplyToUser(&ev, "not available in this channel")
-			return
-		}
-
-		if p, err := a.TopFive(ev.Channel.ID); err == nil {
-			var rtext string
-			rtext += "Top 5 Active Users:\n"
-			//br.SendToChannel(ev.Channel.ID, "Top 5 Active Users:")
-			for _, pu := range p {
-				if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
-					text := fmt.Sprintf("%v:\t\t\t%v", uInfo.Name, pu.Value)
-					rtext += fmt.Sprintf("\t%v\n", text)
-					//br.SendToChannel(ev.Channel.ID, text)
-				}
-			}
-			br.SendToChannel(ev.Channel.ID, rtext)
-			return
-		}
-	} else {
-		br.ReplyToUser(&ev, "Only in a channel")
-		return
-	}
-	br.ReplyToUser(&ev, "something went wrong")
-}
-
-func (a *ActivityLogger) BottomFiveHandler(ev Event, br *Response) {
-	if ev.Channel != nil {
-		if strings.ToLower(ev.Channel.Name) == "general" ||
-			strings.ToLower(ev.Channel.Name) == "random" {
-			br.ReplyToUser(&ev, "not available in this channel")
-			return
-		}
-		if p, err := a.BottomFive(ev.Channel.ID); err == nil {
-			var rtext string
-			rtext += "Bottom 5 Active Users:\n"
-			//br.SendToChannel(ev.Channel.ID, "Bottom 5 Active Users:")
-			for _, pu := range p {
-				if uInfo, err := a.s.rtm.GetUserInfo(strings.ToUpper(pu.Key)); err == nil {
-					text := fmt.Sprintf("%v:\t\t\t%v", uInfo.Name, pu.Value)
-					rtext += fmt.Sprintf("\t%v\n", text)
-					//br.SendToChannel(ev.Channel.ID, text)
-				}
-			}
-			br.SendToChannel(ev.Channel.ID, rtext)
-			return
-		}
-	} else {
-
-		br.ReplyToUser(&ev, "Only in a channel")
-		return
-	}
-	br.ReplyToUser(&ev, "something went wrong")
-}
-
-func (a *ActivityLogger) ActivityLogHandler(ev Event, br *Response) {
-	if ev.Channel != nil && ev.User != nil {
-		if !ev.User.IsBot {
-			go func() {
-				if err := a.logtime(ev.User.ID); err != nil {
-					log.Printf("LogTime Log Error: %v\n", err.Error())
-					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-				}
-			}()
-			go func() {
-				if err := a.log(ev.Channel.ID, ev.User.ID); err != nil {
-					log.Printf("Channel/User Log Error: %v\n", err.Error())
-					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-				}
-			}()
-			go func() {
-				if err := a.log("all", ev.User.ID); err != nil {
-					log.Printf("All/User Log Error: %v\n", err.Error())
-					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-				}
-			}()
-			go func() {
-				if err := a.log(ev.Channel.ID, "all"); err != nil {
-					log.Printf("Channel/All Log Error: %v\n", err.Error())
-					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-				}
-			}()
-			go func() {
-				if err := a.log("all", "all"); err != nil {
-					log.Printf("All/All Log Error: %v\n", err.Error())
-					log.Printf("\tDetails [User: %v, UserID: %v, Channel: %v, ChannelID: %v]\n",
-						ev.User.Name, ev.User.ID, ev.Channel.Name, ev.Channel.ID)
-				}
-			}()
-		}
-	}
-}
-
-//List Helper
-type Pair struct {
-	Key   string
-	Value int
-}
-
-// A slice of Pairs that implements sort.Interface to sort by Value.
-type PairList []Pair
-
-func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func (p PairList) Len() int           { return len(p) }
-func (p PairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
