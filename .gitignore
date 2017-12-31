@@ -1,2 +1,3 @@
-storage*
+storage/*
 main*
+.idea

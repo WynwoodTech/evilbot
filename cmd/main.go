@@ -38,6 +38,7 @@ func main() {
 	b, err := evilbot.New(api_key, "!")
 	if err != nil {
 		log.Println("Not Authenticated, please check your ENV Setting")
+		log.Printf("Error: %v\n", err.Error())
 		return
 	}
 

@@ -168,7 +168,7 @@ func (s *SlackBot) JoinEvent(e *slack.TeamJoinEvent) {
 func (s *SlackBot) HandleJoin(e Event) {
 	time.Sleep(600 * time.Millisecond)
 	phrases := []string{
-		"Wynwood-Tech",
+		"HashChat",
 		"the best internet group since sliced bread",
 		"the dark abyss",
 		"Jamrock",
@@ -185,7 +185,7 @@ func (s *SlackBot) HandleJoin(e Event) {
 		phrases[rand.Intn(len(phrases))],
 	)
 	s.RTM.PostMessage("#general", msgString, msgParams)
-	msgString = "I am Evil Bot here to serve and entertain. My commands are largely Easter-eggs... but you can always ask for !top5."
+	msgString = "I am Evil Bot here to serve and entertain. My commands are largely Easter-eggs and are a work in progress... but you can always ask for !top5."
 	s.RTM.PostMessage("#general", msgString, msgParams)
 }
 func (s *SlackBot) HandleEvent(e *slack.MessageEvent) {
