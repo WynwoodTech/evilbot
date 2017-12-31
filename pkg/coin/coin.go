@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 )
 
-var APIEndpoint = "http://bittrex.com/api/v1.1/public/getmarketsummaries/"
+var APIEndpoint = "http://bittrex.com/api/v1.1/public/"
 var MarketSummaryEndpoint = "getmarketsummaries"
 
 var myClient = &http.Client{Timeout: 10 * time.Second}
