@@ -13,6 +13,8 @@ import (
 	"github.com/wynwoodtech/evilbot/pkg/storage"
 
 	"github.com/gorilla/mux"
+	"github.com/WynwoodTech/evilbot/pkg/coin"
+	"encoding/json"
 )
 
 func main() {
@@ -99,7 +101,15 @@ func main() {
 
 //These are just some example bot handlers
 func TestCmdHandler(e evilbot.Event, r *evilbot.Response) {
-	r.ReplyToUser(&e, "test")
+	ms, err := coin.GetMarketSummary()
+	if err != nil {
+		r.ReplyToUser(&e, "Error")
+	}
+	msJson,err := json.Marshal(ms)
+	if err !=  nil {
+		r.ReplyToUser(&e, "Marshal Error")
+	}
+	r.ReplyToUser(&e, string(msJson))
 	log.Printf("Test Command: %v\n", e)
 }
 
