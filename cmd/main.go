@@ -103,7 +103,8 @@ func main() {
 func TestCmdHandler(e evilbot.Event, r *evilbot.Response) {
 	ms, err := coin.GetMarketSummary()
 	if err != nil {
-		r.ReplyToUser(&e, "Error")
+		errTxt := fmt.Sprintf("Error: %v\n", err.Error())
+		r.ReplyToUser(&e, errTxt)
 	}
 	msJson,err := json.Marshal(ms)
 	if err !=  nil {
