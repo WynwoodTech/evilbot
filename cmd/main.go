@@ -13,7 +13,7 @@ import (
 	"github.com/wynwoodtech/evilbot/pkg/storage"
 
 	"github.com/gorilla/mux"
-	"github.com/WynwoodTech/evilbot/pkg/coin"
+	"github.com/wynwoodtech/evilbot/pkg/coin"
 	"encoding/json"
 )
 
