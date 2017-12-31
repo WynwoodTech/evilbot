@@ -14,11 +14,12 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/wynwoodtech/evilbot/pkg/coin"
-	"encoding/json"
+	"time"
 )
 
 func main() {
 	defer log.Println("Exiting...")
+	go getMarketSummariesEveryMinute()
 
 	//Get the Slack API key from your environment variable
 	log.Println("Provisioning bot...")
@@ -46,8 +47,12 @@ func main() {
 
 	//Add Command Handlers, you can also create an array of handlers and loop trhough them
 	b.AddCmdHandler(
-		"test",
-		TestCmdHandler,
+		"market",
+		MarketCmdHandler,
+	)
+	b.AddCmdHandler(
+		"listmarkets",
+		ListMarketCmdHandler,
 	)
 	b.AddCmdHandler(
 		"help",
@@ -100,18 +105,57 @@ func main() {
 }
 
 //These are just some example bot handlers
-func TestCmdHandler(e evilbot.Event, r *evilbot.Response) {
-	ms, err := coin.GetMarketSummary()
-	if err != nil {
-		errTxt := fmt.Sprintf("Error: %v\n", err.Error())
-		r.ReplyToUser(&e, errTxt)
+func MarketCmdHandler(e evilbot.Event, r *evilbot.Response) {
+	if len(e.ArgStr) > 0 {
+		ms := coin.GetCurrency(e.ArgStr)
+		if len(ms.MarketName) < 1 {
+			r.ReplyToUser(&e, "Market doesn't exist")
+			return
+		}
+		r.SendToChannel(e.Channel.ID, ms.String())
 	}
-	msJson,err := json.Marshal(ms)
-	if err !=  nil {
-		r.ReplyToUser(&e, "Marshal Error")
+	return
+}
+
+func ListMarketCmdHandler(e evilbot.Event, r *evilbot.Response) {
+	if len(e.ArgStr) > 0 {
+		ml := coin.ListMarkets()
+
+		if len(ml) < 1 {
+			r.ReplyToUser(&e, "No Markets :(")
+			return
+		}
+		var rs string
+		var n int
+		for k, v := range ml {
+			if n > 15 {
+				r.ReplyToUser(&e, "Too many markets to list here buddy, try not using a baseline currency")
+				return
+			}
+			if strings.Contains(k, e.ArgStr) {
+				n++
+				markets := strings.Split(k, "-")
+				usdMarket := markets[0] + "-USD"
+				usdPrice := coin.GetUSDValue(v,usdMarket)
+				if len(usdPrice) > 0 {
+					rs += fmt.Sprintf("[%s] ~ $%s\n", k,usdPrice)
+					continue
+				}
+				rs += fmt.Sprintf("[%s]\n", k)
+			}
+
+		}
+
+		if len(rs) == 0 {
+			r.SendToChannel(e.Channel.ID, "I've never heard of that before")
+			return
+		}
+		r.SendToChannel(e.Channel.ID, rs)
+		return
 	}
-	r.ReplyToUser(&e, string(msJson))
-	log.Printf("Test Command: %v\n", e)
+
+	r.SendToChannel(e.Channel.ID, "Too many markets to list bruh, which coin do you want? example: !listmarkets XVG")
+	return
 }
 
 func TestCmdHandler2(e evilbot.Event, r *evilbot.Response) {
@@ -197,4 +241,16 @@ func TestHTTPHandler(rw http.ResponseWriter, r *http.Request, br *evilbot.Respon
 		rw.Write([]byte(fmt.Sprintf("%v: %v", "channel doesn't exist")))
 	}
 	log.Printf("Vars: %#v\n", vars)
+}
+
+func getMarketSummariesEveryMinute() {
+	timeout, err := time.ParseDuration("1m")
+	if err != nil {
+		panic(err)
+	}
+	for {
+		coin.GetMarketSummaryBittrex()
+		coin.GetMarketSummaryBinance()
+		time.Sleep(timeout)
+	}
 }
