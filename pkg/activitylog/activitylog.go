@@ -70,32 +70,6 @@ func NewLogger(s *evilbot.SlackBot) error {
 		return err
 	}
 
-	s.AddCmdHandler("seen", func(e evilbot.Event, br *evilbot.Response) {
-		var response string
-		if e.Channel != nil {
-			log.Printf("Args: %v", e.ArgStr)
-			if len(e.ArgStr) > 0 {
-				u := strings.Split(e.ArgStr, " ")
-				if uInfo, err := br.UserInfo(u[0]); err == nil {
-					if t, err := a.Seen(strings.ToLower(uInfo.ID)); err == nil {
-						tf := t.Format("Jan 2 2006 03:04 PM EST")
-						response = fmt.Sprintf("%v last seen on %v", u[0], tf)
-						br.SendToChannel(e.Channel.ID, response)
-						return
-					}
-				} else {
-					log.Printf("Error: %v\n", err)
-				}
-				response = fmt.Sprintf("%v not seen", u[0])
-			} else {
-				response = "which user?"
-			}
-		} else {
-			response = "only in channel"
-		}
-		br.ReplyToUser(&e, response)
-	})
-
 	s.RegisterEndpoint("/top5/{channelid}", "get", func(rw http.ResponseWriter, r *http.Request, br *evilbot.Response) {
 		ch := mux.Vars(r)["channelid"]
 		if len(ch) < 0 {
@@ -454,7 +428,7 @@ func (a *ActivityLogger) SeenHandler(e evilbot.Event, r *evilbot.Response) {
 		user, err := r.RTM.GetUserInfo(userID)
 		if err == nil {
 			if t, err := a.Seen(user.ID); err == nil {
-				lastSeen := t.Format("Mon Jan _2 2006 15:04")
+				lastSeen := t.Format("Mon Jan _2 2006 3:04 PM")
 				r.SendToChannel(e.Channel.Name, user.Name+" was last seen on: "+lastSeen)
 				return
 			}
